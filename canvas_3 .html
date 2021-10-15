@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<canvas id="myCanvas" width="800" height="600">
+</canvas>
+
+<script>
+var myVar = setInterval(setColor, 50);
+var h= 0;
+var offset = 0.01;
+back_to_minus = true;
+
+function setColor() {
+  var x = document.getElementById("myCanvas");
+  var ctx = x.getContext('2d');
+  
+  if(h >= 0.50 && back_to_minus){
+  	offset = -0.01;
+    back_to_minus = false;
+  }
+  else if (h <= -0.50 && !back_to_minus){
+  	offset = 0.01;
+    back_to_minus = true;
+  }
+    
+  h = h + offset;
+  
+  var greenColor = 0.25-h;
+  if (greenColor <=0) greenColor = 0;
+  var blueColor = 0.75-h;
+  if (blueColor>=1)   blueColor = 1;
+  var height_back_offset = -x.height+x.height/2;
+  var height_front_offset = x.height+x.height/2;
+  
+  var grd = ctx.createLinearGradient(0, height_back_offset, 0, height_front_offset);
+  grd.addColorStop(greenColor, "green");
+  
+  grd.addColorStop(blueColor, "blue");
+
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, x.width, x.height);
+  ctx.stroke();
+
+}
+
+</script>
+</body>
+</html>
