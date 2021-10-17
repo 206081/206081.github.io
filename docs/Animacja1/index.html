@@ -73,6 +73,8 @@
                 &&this.y + this.size < enemy.y + enemy.size){
                     enemy.isAlive = false;
                     bullets.splice(this, 1);
+                    score += 1;
+                    document.getElementById("score").innerHTML = `Punktacja: ${score}`;
                 }
             })
 
@@ -167,5 +169,6 @@
         setInterval (addEnemy, 1000);
 
     </script>
+<p id="score">Punktacja: 0</p>
 </body>
 </html>
