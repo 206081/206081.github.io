@@ -6,7 +6,7 @@
 
 </head>
 <body>
-    <canvas id="canvas" width="800" height="600"></canvas>
+    <canvas id="canvas" width="400" height="600" style="border: 5px solid white;"></canvas>
 
     <script>
 
@@ -14,8 +14,8 @@
         var ctx = user.getContext('2d');
 
         var userSquare = {
-            left: user.width / 2,
-            top: user.height - 30,
+            left: user.width / 2, // start position left/right
+            top: user.height - 30, // start position top/bottom
             size: 20
         };
 
@@ -33,16 +33,18 @@
         document.onkeydown = function(e){
             if (e.keyCode === 37) {
                 userSquare.left = userSquare.left - userSquare.size / 2;
+                if (userSquare.left<0) userSquare.left = 0;
             }
             if (e.keyCode === 39) {
                 userSquare.left = userSquare.left + userSquare.size / 2;
+                if (userSquare.left > user.width - userSquare.size * 2)
+                    userSquare.left = user.width - userSquare.size;
             }
             if (e.keyCode === 32) {
                 // code for bullets
             }
         }
 
-        
         function update(){
             clearCanvas();
             drawUser();
