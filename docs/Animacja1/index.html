@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8"/>
@@ -6,9 +6,28 @@
 
 </head>
 <body>
+    <canvas id="user" width="800" height="600"></canvas>
+
     <script>
 
+        var user = document.getElementById("user");
+        var ctx = user.getContext('2d');
 
+        var userSquare = {
+            left: user.width / 2,
+            top: user.height - 30,
+            size: 20
+        };
+
+        function drawUser(){
+
+            ctx.fillStyle = "green";
+            ctx.fillRect(userSquare.left, userSquare.top, userSquare.size, userSquare.size);
+            ctx.stroke();
+        }
+
+        drawUser();
     </script>
+
 </body>
 </html>
