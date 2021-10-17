@@ -15,6 +15,7 @@
         var bullets = [];
         var enemies = [];
         var colors = ["white", "red", "orange", "pink", "yellow", "purple"]
+        var score = 0;
 
         function UserSquare(x, y, size, color){
             this.x = x;
@@ -66,6 +67,15 @@
             if (this.y < 0){
                 bullets.splice(this, 1);
             }
+
+            enemies.forEach((enemy) => {
+                if (this.x + this.size / 2 >= enemy.x - enemy.size && this.x <= enemy.x + enemy.size
+                &&this.y + this.size < enemy.y + enemy.size){
+                    enemy.isAlive = false;
+                    bullets.splice(this, 1);
+                }
+            })
+
         }
 
         function Enemy(x, y, size, color){
@@ -88,6 +98,11 @@
 
         Enemy.prototype.update = function(){
 
+            var i = enemies.length;
+            while(i--){
+            if (!enemies[i].isAlive)
+                enemies.splice(i, 1);
+            }
         }
 
         document.onkeydown = function(e){
@@ -152,6 +167,5 @@
         setInterval (addEnemy, 1000);
 
     </script>
-<p id="debug">asda</p>
 </body>
 </html>
