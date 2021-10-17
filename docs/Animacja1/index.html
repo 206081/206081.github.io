@@ -15,6 +15,7 @@
         var bullets = [];
         var enemies = [];
         var colors = ["white", "red", "orange", "pink", "yellow", "purple"]
+
         function UserSquare(x, y, size, color){
             this.x = x;
             this.y = y;
@@ -46,13 +47,14 @@
             this.x = x;
             this.y = y;
             this.speed = 3;
+            this.size = 2;
         }
 
         Bullet.prototype.draw = function(){
             ctx.save();
             ctx.beginPath();
             ctx.fillStyle = "red";
-            ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
             ctx.fill();
             ctx.closePath();
             ctx.restore();
@@ -71,6 +73,7 @@
             this.y = y;
             this.size = size;
             this.color = color;
+            this.isAlive = true;
         }
 
         Enemy.prototype.draw = function(){
@@ -81,6 +84,10 @@
             ctx.fill();
             ctx.closePath();
             ctx.restore();
+        }
+
+        Enemy.prototype.update = function(){
+
         }
 
         document.onkeydown = function(e){
@@ -116,6 +123,10 @@
             enemies.forEach((e) => {e.draw();})
         }
 
+        function updateEnemies(){
+            enemies.forEach((e) => {e.update();})
+        }
+
         function drawBullets(){
             bullets.forEach((b) => { b.draw();});
         }
@@ -132,14 +143,15 @@
             clearCanvas();
             userSquare.draw();    
             drawBullets();
+            updateBullets();   
             drawEnemies();
-            updateBullets();    
+            updateEnemies(); 
         }
 
         setInterval (update, 10);
         setInterval (addEnemy, 1000);
 
     </script>
-
+<p id="debug">asda</p>
 </body>
 </html>
