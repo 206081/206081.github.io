@@ -12,7 +12,8 @@
 
         var user = document.getElementById("canvas");
         var ctx = user.getContext('2d');
-
+        var bullets = [];
+        
         function UserSquare(x, y, size, color){
             this.x = x;
             this.y = y;
@@ -27,6 +28,10 @@
             ctx.closePath();
         }
 
+        UserSquare.prototype.shot = function(){
+                bullets.push(new Bullet(this.x + this.size/2, this.y));
+        }
+
         var userProperties={
             left: user.width / 2, // start position left/right
             top: user.height - 30, // start position top/bottom
@@ -36,10 +41,34 @@
 
         var userSquare = new UserSquare(userProperties.left, userProperties.top, userProperties.size, userProperties.color);
 
+        function Bullet(x, y){
+            this.x = x;
+            this.y = y;
+            this.speed = 3;
+        }
+
+        Bullet.prototype.draw = function(){
+            ctx.save();
+            ctx.beginPath();
+            ctx.fillStyle = "red";
+            ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.closePath();
+            ctx.restore();
+        }
+
+        Bullet.prototype.update = function(){
+            this.y -= this.speed;
+
+            if (this.y < 0){
+                bullets.splice(this, 1);
+            }
+        }
+
         document.onkeydown = function(e){
             if (e.keyCode === 37) {
                 userSquare.x = userSquare.x - userSquare.size / 2;
-                if (userSquare.x<0) userSquare.x = 0;
+                if (userSquare.x < 0) userSquare.x = 0;
             }
             if (e.keyCode === 39) {
                 userSquare.x = userSquare.x + userSquare.size / 2;
@@ -47,17 +76,28 @@
                     userSquare.x = user.width - userSquare.size;
             }
             if (e.keyCode === 32) {
-                // code for bullets
+                userSquare.shot();
             }
         }
         
+        function drawBullets(){
+            bullets.forEach((b) => { b.draw();});
+        }
+
+        function updateBullets(){
+            bullets.forEach((b) => { b.update();})
+        }
+
         function clearCanvas() {
 	        ctx.clearRect(0, 0, user.width, user.height);
         }
 
         function update(){
             clearCanvas();
-            userSquare.draw();        
+            userSquare.draw();    
+            drawBullets();
+
+            updateBullets();    
         }
 
         setInterval (update, 10);
