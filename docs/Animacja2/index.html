@@ -15,6 +15,20 @@
     <script>
         var canvas = document.getElementById("canvas");
         var ctx = canvas.getContext('2d');
+        var lines = 0;
+        var turns = {
+            left: "left",
+            center: "center",
+            right: "right"
+        }
+
+        function getRandomInt(min, max) {
+            min = Math.ceil(min);
+            max = Math.floor(max);
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        var turnOffset = 0;
 
         function Car(x, y, width, height) {
             this.x = x;
@@ -49,6 +63,47 @@
 
         var car = new Car(canvas.width / 2, canvas.height - 70, 30, 40);
 
+        var rPrp = {
+            offset: 250,
+            color: "green",
+        };
+
+        function drawRoad() {
+            ctx.beginPath();
+
+            // Background/grass
+            ctx.fillStyle = "green";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Asphalt
+            ctx.fillStyle = "grey";
+            ctx.fillRect(rPrp.offset, 0, canvas.width - rPrp.offset * 2, canvas.height);
+
+            // Asphalt borders
+            for (i = -1; i <= Math.ceil(canvas.height / 20); i++) {
+                lines += 0.1;
+                ctx.fillStyle = "white";
+
+                //Middle lanes
+                ctx.fillRect(canvas.width / 2 - 5 + turnOffset, 40 * i + (lines % 40), 5, 20);
+
+                // White borders
+                // Right
+                ctx.fillRect(canvas.width - rPrp.offset + turnOffset, 40 * i + (lines % 40), 20, 20);
+                // Left
+                ctx.fillRect(rPrp.offset - 20 + turnOffset, 40 * i + (lines % 40), 20, 20);
+
+                // Red borders
+                ctx.fillStyle = "red";
+                // Right
+                ctx.fillRect(canvas.width - rPrp.offset + turnOffset, 40 * i + (lines % 40) - 20, 20, 20);
+                // Left
+                ctx.fillRect(rPrp.offset - 20 + turnOffset, 40 * i + (lines % 40) - 20, 20, 20);
+            }
+
+            ctx.closePath();
+        }
+
         document.onkeydown = function (e) {
             if (e.keyCode === 37) {
                 car.x = car.x - 10;
@@ -65,6 +120,7 @@
         function updateGame() {
             if (car.isAlive) {
                 clearCanvas();
+                drawRoad();
                 car.draw();
                 window.requestAnimationFrame(updateGame);
             }

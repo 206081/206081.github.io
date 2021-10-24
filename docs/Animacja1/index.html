@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="utf-8"/>
+    <meta charset="utf-8" />
     <title>Animacja 1</title>
 
 </head>
+
 <body>
     <canvas id="canvas" width="800" height="600" style="border: 5px double white; background:#1E1E1E;"></canvas>
 
@@ -17,60 +19,60 @@
         var colors = ["white", "red", "orange", "pink", "yellow", "purple"]
         var score = 0;
 
-        function UserSquare(x, y, size, color){
+        function UserSquare(x, y, size, color) {
             this.x = x;
             this.y = y;
             this.size = size;
             this.color = color;
         }
 
-        UserSquare.prototype.draw = function(){
+        UserSquare.prototype.draw = function () {
             ctx.beginPath();
             ctx.fillStyle = this.color;
             ctx.fillRect(this.x, this.y, this.size, this.size);
             ctx.closePath();
         }
 
-        UserSquare.prototype.shot = function(){
-                bullets.push(new Bullet(this.x + this.size/2, this.y));
+        UserSquare.prototype.shot = function () {
+            bullets.push(new Bullet(this.x + this.size / 2, this.y));
         }
 
-        var userProperties={
+        var userProperties = {
             left: user.width / 2, // start position left/right
             top: user.height - 30, // start position top/bottom
             size: 20,
             color: "green"
-        };
+        }
 
         var userSquare = new UserSquare(userProperties.left, userProperties.top, userProperties.size, userProperties.color);
 
-        function Bullet(x, y){
+        function Bullet(x, y) {
             this.x = x;
             this.y = y;
             this.speed = 3;
             this.size = 2;
         }
 
-        Bullet.prototype.draw = function(){
-            ctx.save();
+        Bullet.prototype.draw = function () {
+            // ctx.save();
             ctx.beginPath();
             ctx.fillStyle = "red";
             ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
             ctx.fill();
             ctx.closePath();
-            ctx.restore();
+            // ctx.restore();
         }
 
-        Bullet.prototype.update = function(){
+        Bullet.prototype.update = function () {
             this.y -= this.speed;
 
-            if (this.y < 0){
+            if (this.y < 0) {
                 bullets.splice(this, 1);
             }
 
             enemies.forEach((enemy) => {
                 if (this.x + this.size / 2 >= enemy.x - enemy.size && this.x <= enemy.x + enemy.size
-                &&this.y + this.size < enemy.y + enemy.size){
+                    && this.y + this.size < enemy.y + enemy.size) {
                     enemy.isAlive = false;
                     bullets.splice(this, 1);
                     score += 1;
@@ -80,7 +82,7 @@
 
         }
 
-        function Enemy(x, y, size, color){
+        function Enemy(x, y, size, color) {
             this.x = x;
             this.y = y;
             this.size = size;
@@ -88,7 +90,7 @@
             this.isAlive = true;
         }
 
-        Enemy.prototype.draw = function(){
+        Enemy.prototype.draw = function () {
             ctx.save();
             ctx.beginPath();
             ctx.fillStyle = this.color;
@@ -98,16 +100,16 @@
             ctx.restore();
         }
 
-        Enemy.prototype.update = function(){
+        Enemy.prototype.update = function () {
 
             var i = enemies.length;
-            while(i--){
-            if (!enemies[i].isAlive)
-                enemies.splice(i, 1);
+            while (i--) {
+                if (!enemies[i].isAlive)
+                    enemies.splice(i, 1);
             }
         }
 
-        document.onkeydown = function(e){
+        document.onkeydown = function (e) {
             if (e.keyCode === 37) {
                 userSquare.x = userSquare.x - userSquare.size / 2;
                 if (userSquare.x < 0) userSquare.x = 0;
@@ -121,54 +123,55 @@
                 userSquare.shot();
             }
         }
-        
+
         function getRandomInt(min, max) {
             min = Math.ceil(min);
             max = Math.floor(max);
             return Math.floor(Math.random() * (max - min)) + min;
-        } 
+        }
 
-        function addEnemy(x, y, size, color){
+        function addEnemy(x, y, size, color) {
             if (enemies.length < 10)
                 enemies.push(new Enemy(getRandomInt(0, user.width),
-                                       getRandomInt(0, user.height/2),
-                                       10,
-                                       colors[getRandomInt(0, colors.length)]));
+                    getRandomInt(0, user.height / 2),
+                    10,
+                    colors[getRandomInt(0, colors.length)]));
         }
 
-        function drawEnemies(){
-            enemies.forEach((e) => {e.draw();})
+        function drawEnemies() {
+            enemies.forEach((e) => { e.draw(); })
         }
 
-        function updateEnemies(){
-            enemies.forEach((e) => {e.update();})
+        function updateEnemies() {
+            enemies.forEach((e) => { e.update(); })
         }
 
-        function drawBullets(){
-            bullets.forEach((b) => { b.draw();});
+        function drawBullets() {
+            bullets.forEach((b) => { b.draw(); });
         }
 
-        function updateBullets(){
-            bullets.forEach((b) => { b.update();})
+        function updateBullets() {
+            bullets.forEach((b) => { b.update(); })
         }
 
         function clearCanvas() {
-	        ctx.clearRect(0, 0, user.width, user.height);
+            ctx.clearRect(0, 0, user.width, user.height);
         }
 
-        function update(){
+        function update() {
             clearCanvas();
-            userSquare.draw();    
             drawBullets();
-            updateBullets();   
+            updateBullets();
+            userSquare.draw();
             drawEnemies();
-            updateEnemies(); 
+            updateEnemies();
         }
 
-        setInterval (update, 10);
-        setInterval (addEnemy, 1000);
+        setInterval(update, 10);
+        setInterval(addEnemy, 1000);
 
     </script>
-<p id="score">Punktacja: 0</p>
+    <p id="score">Punktacja: 0</p>
 </body>
+
 </html>
