@@ -75,8 +75,7 @@
         var car = new Car(canvas.width / 2, canvas.height - 70, 30, 40);
 
         var rPrp = {
-            offset: 250,
-            width: canvas.width / 2,
+            width: canvas.width / 3,
             height: 40
         }
 
@@ -96,10 +95,14 @@
             ctx.fillRect(this.x, this.y, this.width, this.height);
 
             // Lanes
+            ctx.save();
+            // ctx.translate();
             ctx.fillStyle = "white";
             ctx.fillRect(this.x + this.width / 2, this.y + this.height / 2, 5, this.height / 2);
+            ctx.restore();
 
             // White Borders
+            ctx.fillStyle = "white";
             ctx.fillRect(this.x - this.height / 2, this.y + this.height / 2, this.height / 2, this.height / 2);
             ctx.fillRect(this.x + this.width, this.y + this.height / 2, this.height / 2, this.height / 2);
 
@@ -114,7 +117,7 @@
         }
 
         Road.prototype.update = function () {
-            this.y = this.y + 1;
+            this.y = this.y + 2;
             if (this.y > canvas.height) {
                 roadSegments.pop();
             }
@@ -134,17 +137,8 @@
         }
 
         function drawRoad() {
-
-            roadSegments.forEach((r) => {
-                r.draw();
-            })
-        }
-
-        function updateRoad() {
-
-            roadSegments.forEach((r) => {
-                r.update();
-            })
+            roadSegments.forEach((r) => { r.draw(); })
+            roadSegments.forEach((r) => { r.update(); })
         }
 
         function updateGame() {
@@ -152,14 +146,18 @@
             if (car.isAlive) {
                 clearCanvas();
                 drawRoad();
-                updateRoad();
                 car.draw();
                 window.requestAnimationFrame(updateGame);
             }
         }
 
         function addSegments() {
-            document.getElementById("debug").innerHTML = `${turnOffset} ${roadSegments.length} ${roadSegments[1].y}`;
+            document.getElementById("debug").innerHTML =
+                `
+             ${roadSegments[0].x}
+             ${canvas.width - rPrp.width - rPrp.height * 2}
+
+             `;
 
             if (roadSegments.length < 20) {
                 roadSegments.unshift(new Road(roadSegments[0].x + turnOffset, roadSegments[0].y - 40, turns.center, rPrp.width, rPrp.height));
@@ -173,18 +171,32 @@
         }
 
         function changeDirection() {
+
             rnd = getRandomInt(1, 3);
-            if ((rnd == 1 && turn == turns.left) || (rnd == 3 && turn == turns.right)) {
+            if ((rnd == 1 && turn == turns.left || roadSegments[0].x <= 50) ||
+                (rnd == 3 && turn == turns.right || roadSegments[0].x >= canvas.width - rPrp.width - rPrp.height)) {
                 rnd = 2;
             }
 
             turn = turns[rnd];
+
+            switch (turn) {
+                case turns.left:
+                    turnOffset = -10;
+                    break;
+                case turns.center:
+                    turnOffset = 0;
+                    break;
+                case turns.right:
+                    turnOffset = 10;
+                    break;
+            }
         }
 
         drawStart();
         updateGame();
         setInterval(changeDirection, 2000);
-        setInterval(addSegments, 300);
+        setInterval(addSegments, 10);
 
     </script>
     <p id="debug"></p>
