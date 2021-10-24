@@ -9,18 +9,30 @@
 
 <body>
     <canvas id="canvas" width="800" height="600" style="border: 5px double white;
-                    background:#1E1E1E;">
+                    background:green;">
     </canvas>
 
     <script>
         var canvas = document.getElementById("canvas");
         var ctx = canvas.getContext('2d');
         var lines = 0;
+        var roadSegments = [];
         var turns = {
-            left: "left",
-            center: "center",
-            right: "right"
+            left: 1,
+            center: 2,
+            right: 3,
         }
+
+        var iterator = 0;
+        var turnOffset = 0;
+        var turn = turns.center;
+
+        var rnd = 1;
+
+        turns[1] = turns.left;
+        turns[2] = turns.center;
+        turns[3] = turns.right;
+
 
         function getRandomInt(min, max) {
             min = Math.ceil(min);
@@ -28,7 +40,6 @@
             return Math.floor(Math.random() * (max - min + 1)) + min;
         }
 
-        var turnOffset = 0;
 
         function Car(x, y, width, height) {
             this.x = x;
@@ -39,18 +50,18 @@
         }
 
         Car.prototype.draw = function () {
+            drawWheels(this.x, this.y, this.width, this.height);
             ctx.beginPath();
             ctx.fillStyle = "red";
             ctx.fillRect(this.x, this.y, this.width, this.height);
             ctx.closePath();
-            drawWheels(this.x, this.y, this.width, this.height);
-        };
+        }
 
         function drawWheels(x, y, width, height) {
-            drawWheel(x + 5, y + 10);
-            drawWheel(x + width - 5, y + 10);
-            drawWheel(x + 5, y + height - 10);
-            drawWheel(x + width - 5, y + height - 10);
+            drawWheel(x, y + 10);
+            drawWheel(x + width, y + 10);
+            drawWheel(x, y + height - 10);
+            drawWheel(x + width, y + height - 10);
         }
 
         function drawWheel(x, y) {
@@ -65,43 +76,48 @@
 
         var rPrp = {
             offset: 250,
-            color: "green",
-        };
+            width: canvas.width / 2,
+            height: 40
+        }
 
-        function drawRoad() {
+        function Road(x, y, turn, width, height) {
+            this.x = x;
+            this.y = y;
+            this.turn = turn;
+            this.width = width;
+            this.height = height;
+        }
+
+        Road.prototype.draw = function () {
             ctx.beginPath();
 
-            // Background/grass
-            ctx.fillStyle = "green";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
             // Asphalt
-            ctx.fillStyle = "grey";
-            ctx.fillRect(rPrp.offset, 0, canvas.width - rPrp.offset * 2, canvas.height);
+            ctx.fillStyle = "gray";
+            ctx.fillRect(this.x, this.y, this.width, this.height);
 
-            // Asphalt borders
-            for (i = -1; i <= Math.ceil(canvas.height / 20); i++) {
-                lines += 0.1;
-                ctx.fillStyle = "white";
+            // Lanes
+            ctx.fillStyle = "white";
+            ctx.fillRect(this.x + this.width / 2, this.y + this.height / 2, 5, this.height / 2);
 
-                //Middle lanes
-                ctx.fillRect(canvas.width / 2 - 5 + turnOffset, 40 * i + (lines % 40), 5, 20);
+            // White Borders
+            ctx.fillRect(this.x - this.height / 2, this.y + this.height / 2, this.height / 2, this.height / 2);
+            ctx.fillRect(this.x + this.width, this.y + this.height / 2, this.height / 2, this.height / 2);
 
-                // White borders
-                // Right
-                ctx.fillRect(canvas.width - rPrp.offset + turnOffset, 40 * i + (lines % 40), 20, 20);
-                // Left
-                ctx.fillRect(rPrp.offset - 20 + turnOffset, 40 * i + (lines % 40), 20, 20);
-
-                // Red borders
-                ctx.fillStyle = "red";
-                // Right
-                ctx.fillRect(canvas.width - rPrp.offset + turnOffset, 40 * i + (lines % 40) - 20, 20, 20);
-                // Left
-                ctx.fillRect(rPrp.offset - 20 + turnOffset, 40 * i + (lines % 40) - 20, 20, 20);
-            }
+            // Red Borders
+            ctx.fillStyle = "red";
+            ctx.fillRect(this.x - this.height / 2, this.y, this.height / 2, this.height / 2);
+            ctx.fillRect(this.x + this.width, this.y, this.height / 2, this.height / 2);
 
             ctx.closePath();
+
+            iterator++;
+        }
+
+        Road.prototype.update = function () {
+            this.y = this.y + 1;
+            if (this.y > canvas.height) {
+                roadSegments.pop();
+            }
         }
 
         document.onkeydown = function (e) {
@@ -117,18 +133,61 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
 
+        function drawRoad() {
+
+            roadSegments.forEach((r) => {
+                r.draw();
+            })
+        }
+
+        function updateRoad() {
+
+            roadSegments.forEach((r) => {
+                r.update();
+            })
+        }
+
         function updateGame() {
+
             if (car.isAlive) {
                 clearCanvas();
                 drawRoad();
+                updateRoad();
                 car.draw();
                 window.requestAnimationFrame(updateGame);
             }
         }
 
+        function addSegments() {
+            document.getElementById("debug").innerHTML = `${turnOffset} ${roadSegments.length} ${roadSegments[1].y}`;
+
+            if (roadSegments.length < 20) {
+                roadSegments.unshift(new Road(roadSegments[0].x + turnOffset, roadSegments[0].y - 40, turns.center, rPrp.width, rPrp.height));
+            }
+        }
+
+        function drawStart() {
+            for (i = -rPrp.height; i < canvas.height; i += rPrp.height) {
+                roadSegments.push(new Road(canvas.width / 2 - rPrp.width / 2, i, turns.center, rPrp.width, rPrp.height));
+            }
+        }
+
+        function changeDirection() {
+            rnd = getRandomInt(1, 3);
+            if ((rnd == 1 && turn == turns.left) || (rnd == 3 && turn == turns.right)) {
+                rnd = 2;
+            }
+
+            turn = turns[rnd];
+        }
+
+        drawStart();
         updateGame();
+        setInterval(changeDirection, 2000);
+        setInterval(addSegments, 300);
 
     </script>
+    <p id="debug"></p>
 
 </body>
 
