@@ -15,8 +15,9 @@
     <script>
         var canvas = document.getElementById("canvas");
         var ctx = canvas.getContext('2d');
-        var lines = 0;
         var roadSegments = [];
+        var angle = 12;
+
         var turns = {
             left: 1,
             center: 2,
@@ -88,20 +89,48 @@
         }
 
         Road.prototype.draw = function () {
-            ctx.beginPath();
 
             // Asphalt
+            ctx.beginPath();
             ctx.fillStyle = "gray";
             ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.closePath();
 
             // Lanes
             ctx.save();
-            // ctx.translate();
+            ctx.beginPath();
+            if (this.turn == turns.left) {
+                ctx.translate(this.x + this.width / 2 + 0.5 * 5, this.y + this.height / 2 + 0.5 * this.height / 2);
+                ctx.rotate((Math.PI / 180) * - angle);
+                ctx.translate(-(this.x + this.width / 2 + 0.5 * 5), -(this.y + this.height / 2 + 0.5 * this.height / 2));
+            }
+            else if (this.turn == turns.right) {
+                ctx.translate(this.x + this.width / 2 + 0.5 * 5, this.y + this.height / 2 + 0.5 * this.height / 2);
+                ctx.rotate((Math.PI / 180) * + angle);
+                ctx.translate(-(this.x + this.width / 2 + 0.5 * 5), -(this.y + this.height / 2 + 0.5 * this.height / 2));
+            }
             ctx.fillStyle = "white";
             ctx.fillRect(this.x + this.width / 2, this.y + this.height / 2, 5, this.height / 2);
+            ctx.closePath();
             ctx.restore();
 
+            // Borders
             // White Borders
+            ctx.save();
+            ctx.beginPath();
+
+            // TODO borders transposition
+            // if (this.turn == turns.left) {
+            //     ctx.translate(this.x + this.width / 2 + 0.5 * this.height / 2, this.y + this.height / 2 + 0.5 * this.height / 2);
+            //     ctx.rotate((Math.PI / 180) * - angle);
+            //     ctx.translate(-(this.x + this.width / 2 + 0.5 * this.height / 2), -(this.y + this.height / 2 + 0.5 * this.height / 2));
+            // }
+            // else if (this.turn == turns.right) {
+            //     ctx.translate(this.x + this.width / 2 + 0.5 * this.height / 2, this.y + this.height / 2 + 0.5 * this.height / 2);
+            //     ctx.rotate((Math.PI / 180) * + angle);
+            //     ctx.translate(-(this.x + this.width / 2 + 0.5 * this.height / 2), -(this.y + this.height / 2 + 0.5 * this.height / 2));
+            // }
+
             ctx.fillStyle = "white";
             ctx.fillRect(this.x - this.height / 2, this.y + this.height / 2, this.height / 2, this.height / 2);
             ctx.fillRect(this.x + this.width, this.y + this.height / 2, this.height / 2, this.height / 2);
@@ -112,12 +141,13 @@
             ctx.fillRect(this.x + this.width, this.y, this.height / 2, this.height / 2);
 
             ctx.closePath();
-
+            ctx.restore();
             iterator++;
         }
 
         Road.prototype.update = function () {
             this.y = this.y + 2;
+
             if (this.y > canvas.height) {
                 roadSegments.pop();
             }
@@ -142,7 +172,6 @@
         }
 
         function updateGame() {
-
             if (car.isAlive) {
                 clearCanvas();
                 drawRoad();
@@ -154,27 +183,26 @@
         function addSegments() {
             document.getElementById("debug").innerHTML =
                 `
-             ${roadSegments[0].x}
-             ${canvas.width - rPrp.width - rPrp.height * 2}
+             ${turn}
 
              `;
 
             if (roadSegments.length < 20) {
-                roadSegments.unshift(new Road(roadSegments[0].x + turnOffset, roadSegments[0].y - 40, turns.center, rPrp.width, rPrp.height));
+                roadSegments.unshift(new Road(roadSegments[0].x + turnOffset, roadSegments[0].y - 40, turn, rPrp.width, rPrp.height));
             }
         }
 
         function drawStart() {
             for (i = -rPrp.height; i < canvas.height; i += rPrp.height) {
-                roadSegments.push(new Road(canvas.width / 2 - rPrp.width / 2, i, turns.center, rPrp.width, rPrp.height));
+                roadSegments.push(new Road(canvas.width / 2 - rPrp.width / 2, i, turn, rPrp.width, rPrp.height));
             }
         }
 
         function changeDirection() {
 
             rnd = getRandomInt(1, 3);
-            if ((rnd == 1 && turn == turns.left || roadSegments[0].x <= 50) ||
-                (rnd == 3 && turn == turns.right || roadSegments[0].x >= canvas.width - rPrp.width - rPrp.height)) {
+            if ((rnd == 1 && roadSegments[0].x <= 50) ||
+                (rnd == 3 && roadSegments[0].x >= canvas.width - rPrp.width - rPrp.height)) {
                 rnd = 2;
             }
 
