@@ -26,15 +26,15 @@
         }
 
         var iterator = 0;
-        var turnOffset = 0;
+        var curveOffset = 0;
         var turn = turns.center;
 
         var rnd = 1;
+        var block = turns.center;
 
         turns[1] = turns.left;
         turns[2] = turns.center;
         turns[3] = turns.right;
-
 
         function getRandomInt(min, max) {
             min = Math.ceil(min);
@@ -61,12 +61,26 @@
 
         Car.prototype.update = function () {
             roadSegments.forEach((r) => {
-                if ((this.x - wheelRadius <= r.x || this.x + this.width + wheelRadius >= r.x + r.width) && this.y <= r.y) {
+                if (((this.x - wheelRadius <= r.x || this.x + this.width + wheelRadius >= r.x + r.width)
+                    && this.y <= r.y
+                ) ||
+                    ((
+                        r.block == turns.left
+                        && this.y <= r.y + r.height - r.height / 4
+                        && this.y + this.height >= r.y + r.height / 4
+                        && this.x + this.width - wheelRadius >= r.x
+                        && this.x - wheelRadius <= r.x + r.width / 2) ||
+                        r.block == turns.right
+                        && this.y <= r.y + r.height - r.height / 4
+                        && this.y + this.height >= r.y + r.height / 4
+                        && this.x + this.width + wheelRadius >= r.x + r.width / 2
+                        && this.x + wheelRadius <= r.x + r.width
+                    )) {
                     this.isAlive = false;
                 }
-
             })
         }
+
         function drawWheels(x, y, width, height) {
             drawWheel(x, y + 10);
             drawWheel(x + width, y + 10);
@@ -89,12 +103,14 @@
             height: 40
         }
 
-        function Road(x, y, turn, width, height) {
+        function Road(x, y, turn, width, height, block, coin) {
             this.x = x;
             this.y = y;
             this.turn = turn;
             this.width = width;
             this.height = height;
+            this.block = block;
+            this.coin = coin
         }
 
         Road.prototype.draw = function () {
@@ -109,14 +125,14 @@
             ctx.save();
             ctx.beginPath();
             if (this.turn == turns.left) {
-                ctx.translate(this.x + this.width / 2 + 0.5 * 5, this.y + this.height / 2 + 0.5 * this.height / 2);
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
                 ctx.rotate((Math.PI / 180) * - angle);
-                ctx.translate(-(this.x + this.width / 2 + 0.5 * 5), -(this.y + this.height / 2 + 0.5 * this.height / 2));
+                ctx.translate(-(this.x + this.width / 2), -(this.y + this.height / 2));
             }
             else if (this.turn == turns.right) {
-                ctx.translate(this.x + this.width / 2 + 0.5 * 5, this.y + this.height / 2 + 0.5 * this.height / 2);
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
                 ctx.rotate((Math.PI / 180) * + angle);
-                ctx.translate(-(this.x + this.width / 2 + 0.5 * 5), -(this.y + this.height / 2 + 0.5 * this.height / 2));
+                ctx.translate(-(this.x + this.width / 2), -(this.y + this.height / 2));
             }
             ctx.fillStyle = "white";
             ctx.fillRect(this.x + this.width / 2, this.y + this.height / 2, 5, this.height / 2);
@@ -129,17 +145,6 @@
             ctx.beginPath();
 
             // TODO borders transposition
-            // if (this.turn == turns.left) {
-            //     ctx.translate(this.x + this.width / 2 + 0.5 * this.height / 2, this.y + this.height / 2 + 0.5 * this.height / 2);
-            //     ctx.rotate((Math.PI / 180) * - angle);
-            //     ctx.translate(-(this.x + this.width / 2 + 0.5 * this.height / 2), -(this.y + this.height / 2 + 0.5 * this.height / 2));
-            // }
-            // else if (this.turn == turns.right) {
-            //     ctx.translate(this.x + this.width / 2 + 0.5 * this.height / 2, this.y + this.height / 2 + 0.5 * this.height / 2);
-            //     ctx.rotate((Math.PI / 180) * + angle);
-            //     ctx.translate(-(this.x + this.width / 2 + 0.5 * this.height / 2), -(this.y + this.height / 2 + 0.5 * this.height / 2));
-            // }
-
             ctx.fillStyle = "white";
             ctx.fillRect(this.x - this.height / 2, this.y + this.height / 2, this.height / 2, this.height / 2);
             ctx.fillRect(this.x + this.width, this.y + this.height / 2, this.height / 2, this.height / 2);
@@ -151,7 +156,19 @@
 
             ctx.closePath();
             ctx.restore();
-            iterator++;
+
+            // Blokers
+            ctx.beginPath();
+            ctx.fillStyle = "brown";
+            if (this.block == turns.left) {
+                ctx.fillRect(this.x, this.y + this.height / 4, this.width / 2, this.height / 2);
+            }
+            else if (this.block == turns.right) {
+                ctx.fillRect(this.x + this.width / 2, this.y + this.height / 4, this.width / 2, this.height / 2);
+            }
+            ctx.closePath();
+
+            ctx
         }
 
         Road.prototype.update = function () {
@@ -164,10 +181,13 @@
 
         document.onkeydown = function (e) {
             if (e.keyCode === 37) {
-                car.x = car.x - 10;
+                car.x = car.x - 20;
             }
             if (e.keyCode === 39) {
-                car.x = car.x + 10;
+                car.x = car.x + 20;
+            }
+            if (e.key === 13) {
+                // code for restart game
             }
         }
 
@@ -190,24 +210,36 @@
             }
         }
 
-        function addSegments() {
-            document.getElementById("debug").innerHTML =
-                `
-             ${turn}
-
-             `;
-
+        function addSegment() {
             if (roadSegments.length < 20) {
-                roadSegments.unshift(new Road(roadSegments[0].x + turnOffset, roadSegments[0].y - 40, turn, rPrp.width, rPrp.height));
+                roadSegments.unshift(
+                    new Road(roadSegments[0].x + curveOffset,
+                        roadSegments[0].y - rPrp.height,
+                        turn,
+                        rPrp.width,
+                        rPrp.height,
+                        block)
+                );
+                block = turns.center;
             }
         }
 
         function drawStart() {
             for (i = -rPrp.height; i < canvas.height; i += rPrp.height) {
-                roadSegments.push(new Road(canvas.width / 2 - rPrp.width / 2, i, turn, rPrp.width, rPrp.height));
+                roadSegments.push(
+                    new Road(canvas.width / 2 - rPrp.width / 2,
+                        i,
+                        turn,
+                        rPrp.width,
+                        rPrp.height,
+                        turns.center)
+                );
             }
         }
 
+        function addBlock() {
+            block = turns[getRandomInt(1, 3)];
+        }
         function changeDirection() {
 
             rnd = getRandomInt(1, 3);
@@ -220,13 +252,13 @@
 
             switch (turn) {
                 case turns.left:
-                    turnOffset = -10;
+                    curveOffset = -10;
                     break;
                 case turns.center:
-                    turnOffset = 0;
+                    curveOffset = 0;
                     break;
                 case turns.right:
-                    turnOffset = 10;
+                    curveOffset = 10;
                     break;
             }
         }
@@ -234,7 +266,8 @@
         drawStart();
         updateGame();
         setInterval(changeDirection, 2000);
-        setInterval(addSegments, 10);
+        setInterval(addBlock, 1000);
+        setInterval(addSegment, 10);
 
     </script>
     <p id="debug"></p>
