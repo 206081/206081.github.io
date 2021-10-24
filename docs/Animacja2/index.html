@@ -17,6 +17,7 @@
         var ctx = canvas.getContext('2d');
         var roadSegments = [];
         var angle = 12;
+        var wheelRadius = 5;
 
         var turns = {
             left: 1,
@@ -47,7 +48,7 @@
             this.y = y;
             this.width = width;
             this.height = height;
-            this.isAlive = true
+            this.isAlive = true;
         }
 
         Car.prototype.draw = function () {
@@ -58,6 +59,14 @@
             ctx.closePath();
         }
 
+        Car.prototype.update = function () {
+            roadSegments.forEach((r) => {
+                if ((this.x - wheelRadius <= r.x || this.x + this.width + wheelRadius >= r.x + r.width) && this.y <= r.y) {
+                    this.isAlive = false;
+                }
+
+            })
+        }
         function drawWheels(x, y, width, height) {
             drawWheel(x, y + 10);
             drawWheel(x + width, y + 10);
@@ -68,7 +77,7 @@
         function drawWheel(x, y) {
             ctx.beginPath();
             ctx.fillStyle = "black";
-            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.arc(x, y, wheelRadius, 0, Math.PI * 2);
             ctx.fill();
             ctx.closePath();
         }
@@ -176,6 +185,7 @@
                 clearCanvas();
                 drawRoad();
                 car.draw();
+                car.update();
                 window.requestAnimationFrame(updateGame);
             }
         }
