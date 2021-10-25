@@ -24,17 +24,17 @@
             center: 2,
             right: 3,
         }
-
-        var iterator = 0;
-        var curveOffset = 0;
         var turn = turns.center;
-
-        var rnd = 1;
-        var block = turns.center;
 
         turns[1] = turns.left;
         turns[2] = turns.center;
         turns[3] = turns.right;
+
+        var score = 0;
+        var curveOffset = 0;
+
+        var rnd = 1;
+        var block = turns.center;
 
         function getRandomInt(min, max) {
             min = Math.ceil(min);
@@ -66,15 +66,15 @@
                 ) ||
                     ((
                         r.block == turns.left
-                        && this.y <= r.y + r.height - r.height / 4
-                        && this.y + this.height >= r.y + r.height / 4
-                        && this.x + this.width - wheelRadius >= r.x
-                        && this.x - wheelRadius <= r.x + r.width / 2) ||
+                        && this.y < r.y + r.height - r.height / 4
+                        && this.y + this.height > r.y + r.height / 4
+                        && this.x + this.width - wheelRadius > r.x
+                        && this.x - wheelRadius < r.x + r.width / 2) ||
                         r.block == turns.right
-                        && this.y <= r.y + r.height - r.height / 4
-                        && this.y + this.height >= r.y + r.height / 4
-                        && this.x + this.width + wheelRadius >= r.x + r.width / 2
-                        && this.x + wheelRadius <= r.x + r.width
+                        && this.y < r.y + r.height - r.height / 4
+                        && this.y + this.height > r.y + r.height / 4
+                        && this.x + this.width + wheelRadius > r.x + r.width / 2
+                        && this.x + wheelRadius < r.x + r.width
                     )) {
                     this.isAlive = false;
                 }
@@ -96,7 +96,7 @@
             ctx.closePath();
         }
 
-        var car = new Car(canvas.width / 2, canvas.height - 70, 30, 40);
+        var car = new Car(canvas.width / 2 - 15, canvas.height - 70, 30, 40);
 
         var rPrp = {
             width: canvas.width / 3,
@@ -111,6 +111,9 @@
             this.height = height;
             this.block = block;
             this.coin = coin
+            if (this.turn != turns.center) {
+                this.width = this.width + 10;
+            }
         }
 
         Road.prototype.draw = function () {
@@ -124,36 +127,18 @@
             // Lanes
             ctx.save();
             ctx.beginPath();
+
+            ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
             if (this.turn == turns.left) {
-                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
                 ctx.rotate((Math.PI / 180) * - angle);
-                ctx.translate(-(this.x + this.width / 2), -(this.y + this.height / 2));
             }
             else if (this.turn == turns.right) {
-                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
                 ctx.rotate((Math.PI / 180) * + angle);
-                ctx.translate(-(this.x + this.width / 2), -(this.y + this.height / 2));
             }
+            ctx.translate(-(this.x + this.width / 2), -(this.y + this.height / 2));
+
             ctx.fillStyle = "white";
-            ctx.fillRect(this.x + this.width / 2, this.y + this.height / 2, 5, this.height / 2);
-            ctx.closePath();
-            ctx.restore();
-
-            // Borders
-            // White Borders
-            ctx.save();
-            ctx.beginPath();
-
-            // TODO borders transposition
-            ctx.fillStyle = "white";
-            ctx.fillRect(this.x - this.height / 2, this.y + this.height / 2, this.height / 2, this.height / 2);
-            ctx.fillRect(this.x + this.width, this.y + this.height / 2, this.height / 2, this.height / 2);
-
-            // Red Borders
-            ctx.fillStyle = "red";
-            ctx.fillRect(this.x - this.height / 2, this.y, this.height / 2, this.height / 2);
-            ctx.fillRect(this.x + this.width, this.y, this.height / 2, this.height / 2);
-
+            ctx.fillRect(this.x + this.width / 2 - 2.5, this.y + this.height / 2, 5, this.height / 2);
             ctx.closePath();
             ctx.restore();
 
@@ -168,7 +153,45 @@
             }
             ctx.closePath();
 
-            ctx
+            // Borders
+            // White Borders
+            ctx.save();
+            ctx.beginPath();
+
+            var borderHeight = this.height / 2;
+            ctx.fillStyle = "white";
+            if (this.turn == turns.left) {
+                ctx.fillRect(this.x - borderHeight + 5, this.y + borderHeight, borderHeight, borderHeight);
+                ctx.fillRect(this.x + this.width, this.y + borderHeight, borderHeight, borderHeight);
+
+            } else if (this.turn == turns.right) {
+                ctx.fillRect(this.x - borderHeight, this.y + borderHeight, borderHeight, borderHeight);
+                ctx.fillRect(this.x + this.width - 5, this.y + borderHeight, borderHeight, borderHeight);
+            }
+            else {
+                ctx.fillRect(this.x - borderHeight, this.y + borderHeight, borderHeight, borderHeight);
+                ctx.fillRect(this.x + this.width, this.y + borderHeight, borderHeight, borderHeight);
+            }
+
+            // Red Borders
+            ctx.fillStyle = "red";
+            if (this.turn == turns.left) {
+                ctx.fillRect(this.x - borderHeight, this.y, borderHeight, borderHeight);
+                ctx.fillRect(this.x + this.width - 5, this.y, borderHeight, borderHeight);
+
+            } else if (this.turn == turns.right) {
+                ctx.fillRect(this.x - borderHeight + 5, this.y, borderHeight, borderHeight);
+                ctx.fillRect(this.x + this.width, this.y, borderHeight, borderHeight);
+
+            }
+            else {
+                ctx.fillRect(this.x - borderHeight, this.y, borderHeight, borderHeight);
+                ctx.fillRect(this.x + this.width, this.y, borderHeight, borderHeight);
+            }
+
+            ctx.closePath();
+            ctx.restore();
+
         }
 
         Road.prototype.update = function () {
@@ -200,12 +223,15 @@
             roadSegments.forEach((r) => { r.update(); })
         }
 
+        function drawPlayer() {
+            car.draw();
+            car.update();
+        }
         function updateGame() {
             if (car.isAlive) {
                 clearCanvas();
                 drawRoad();
-                car.draw();
-                car.update();
+                drawPlayer()
                 window.requestAnimationFrame(updateGame);
             }
         }
@@ -229,7 +255,7 @@
                 roadSegments.push(
                     new Road(canvas.width / 2 - rPrp.width / 2,
                         i,
-                        turn,
+                        turns.center,
                         rPrp.width,
                         rPrp.height,
                         turns.center)
@@ -240,9 +266,10 @@
         function addBlock() {
             block = turns[getRandomInt(1, 3)];
         }
-        function changeDirection() {
 
+        function changeDirection() {
             rnd = getRandomInt(1, 3);
+
             if ((rnd == 1 && roadSegments[0].x <= 50) ||
                 (rnd == 3 && roadSegments[0].x >= canvas.width - rPrp.width - rPrp.height)) {
                 rnd = 2;
