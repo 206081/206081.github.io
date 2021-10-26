@@ -16,6 +16,7 @@
         var canvas = document.getElementById("canvas");
         var ctx = canvas.getContext('2d');
         var roadSegments = [];
+        var keyState = {};
         var angle = 12;
         var wheelRadius = 5;
 
@@ -24,7 +25,6 @@
             center: 2,
             right: 3,
         }
-        var turn = turns.center;
 
         turns[1] = turns.left;
         turns[2] = turns.center;
@@ -32,9 +32,11 @@
 
         var score = 0;
         var curveOffset = 0;
-
+        var turn = turns.center;
         var rnd = 1;
         var block = turns.center;
+        var ifCoin = false;
+        var coin = 1;
 
         function getRandomInt(min, max) {
             min = Math.ceil(min);
@@ -61,9 +63,14 @@
 
         Car.prototype.update = function () {
             roadSegments.forEach((r) => {
-                if (((this.x - wheelRadius <= r.x || this.x + this.width + wheelRadius >= r.x + r.width)
-                    && this.y <= r.y
-                ) ||
+                if (
+                    // Borders
+                    (
+                        (this.x - wheelRadius <= r.x || this.x + this.width + wheelRadius >= r.x + r.width)
+                        && this.y <= r.y
+                    ) ||
+
+                    // Blockers
                     ((
                         r.block == turns.left
                         && this.y < r.y + r.height - r.height / 4
@@ -103,15 +110,15 @@
             height: 40
         }
 
-        function Road(x, y, turn, width, height, block, coin) {
+        function Road(x, y, turn) {
             this.x = x;
             this.y = y;
             this.turn = turn;
-            this.width = width;
-            this.height = height;
+            this.width = rPrp.width;
+            this.height = rPrp.height;
             this.block = block;
-            this.coin = coin
-            if (this.turn != turns.center) {
+            this.coin = coin;
+            if (this.turn == turns.left) {
                 this.width = this.width + 10;
             }
         }
@@ -202,15 +209,40 @@
             }
         }
 
+        window.addEventListener('keydown', function (e) {
+            keyState[e.keyCode || e.which] = true;
+        }, true);
+        window.addEventListener('keyup', function (e) {
+            keyState[e.keyCode || e.which] = false;
+        }, true);
+
+        function moveCar() {
+            if (keyState[37]) {
+                car.x = car.x - 1;
+            }
+            if (keyState[39]) {
+                car.x = car.x + 1;
+            }
+            setTimeout(moveCar, 5);
+        }
+
         document.onkeydown = function (e) {
-            if (e.keyCode === 37) {
-                car.x = car.x - 20;
-            }
-            if (e.keyCode === 39) {
-                car.x = car.x + 20;
-            }
-            if (e.key === 13) {
-                // code for restart game
+            if (e.keyCode === 13 && !car.isAlive) {
+                roadSegments = [];
+                score = 0;
+                curveOffset = 0;
+                turn = turns.center;
+                rnd = 1;
+                block = turns.center;
+                ifCoin = false;
+                coin = 1;
+                drawStart();
+                car = new Car(canvas.width / 2 - 15, canvas.height - 70, 30, 40);
+                window.requestAnimationFrame(gameLoop);
+                changeDirectionInterval = setInterval(changeDirection, 2000);
+                addBlockInterval = setInterval(addBlock, 1000);
+                addCoinInterval = setInterval(addCoin, 500);
+                addSegmentInterval = setInterval(addSegment, 10);
             }
         }
 
@@ -227,24 +259,13 @@
             car.draw();
             car.update();
         }
-        function updateGame() {
-            if (car.isAlive) {
-                clearCanvas();
-                drawRoad();
-                drawPlayer()
-                window.requestAnimationFrame(updateGame);
-            }
-        }
 
         function addSegment() {
             if (roadSegments.length < 20) {
                 roadSegments.unshift(
                     new Road(roadSegments[0].x + curveOffset,
                         roadSegments[0].y - rPrp.height,
-                        turn,
-                        rPrp.width,
-                        rPrp.height,
-                        block)
+                        turn)
                 );
                 block = turns.center;
             }
@@ -255,9 +276,6 @@
                 roadSegments.push(
                     new Road(canvas.width / 2 - rPrp.width / 2,
                         i,
-                        turns.center,
-                        rPrp.width,
-                        rPrp.height,
                         turns.center)
                 );
             }
@@ -267,10 +285,16 @@
             block = turns[getRandomInt(1, 3)];
         }
 
+        function addCoin() {
+            ifCoin = getRandomInt(0, 1);
+            coin = turns[getRandomInt(1, 3)];
+        }
+
+
         function changeDirection() {
             rnd = getRandomInt(1, 3);
 
-            if ((rnd == 1 && roadSegments[0].x <= 50) ||
+            if ((rnd == 1 && roadSegments[0].x <= rPrp.height) ||
                 (rnd == 3 && roadSegments[0].x >= canvas.width - rPrp.width - rPrp.height)) {
                 rnd = 2;
             }
@@ -290,15 +314,60 @@
             }
         }
 
+        function drawScore() {
+            if (car.isAlive) {
+                ctx.beginPath();
+                ctx.font = "30px Arial";
+                ctx.fillStyle = "white";
+                ctx.fillText(`Score: ${score}`, 10, canvas.height - 10);
+                ctx.strokeText(`Score: ${score}`, 10, canvas.height - 10);
+                ctx.stroke();
+                ctx.closePath();
+            }
+            else {
+                ctx.beginPath();
+                ctx.fillStyle = "black";
+                ctx.rect(canvas.width / 2 - 202, canvas.height / 2 - 102, 404, 204);
+                ctx.strokeStyle = "white";
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.font = "30px Arial";
+                ctx.fillStyle = "white";
+                ctx.fillText(`Your Score is ${score}.`, canvas.width / 2 - 180, canvas.height / 2);
+                ctx.fillText(`Press Enter to try again.`, canvas.width / 2 - 180, canvas.height / 2 + 50);
+                ctx.closePath();
+            }
+        }
+
+        function gameLoop() {
+            if (car.isAlive) {
+                clearCanvas();
+                drawRoad();
+                drawPlayer();
+                window.requestAnimationFrame(gameLoop);
+            }
+            else {
+                clearCanvas();
+                drawRoad();
+                drawPlayer();
+                clearInterval(changeDirectionInterval);
+                clearInterval(addBlockInterval);
+                clearInterval(addCoinInterval);
+                clearInterval(addSegmentInterval);
+            }
+            drawScore();
+        }
+
         drawStart();
-        updateGame();
-        setInterval(changeDirection, 2000);
-        setInterval(addBlock, 1000);
-        setInterval(addSegment, 10);
+        moveCar();
+        gameLoop();
+        var changeDirectionInterval = setInterval(changeDirection, 2000);
+        var addBlockInterval = setInterval(addBlock, 1000);
+        var addCoinInterval = setInterval(addCoin, 500);
+        var addSegmentInterval = setInterval(addSegment, 10);
 
     </script>
-    <p id="debug"></p>
-
 </body>
 
 </html>
