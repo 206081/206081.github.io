@@ -15,6 +15,7 @@
         var canvas = document.getElementById("canvas");
         var ctx = canvas.getContext('2d');
 
+        var animationFrame;
         var roadSegments = [];
         var keyState = {};
 
@@ -43,7 +44,7 @@
         var turn = turns.center;
         var block = turns.center;
         var ifCoin = false;
-        var coin = 1;
+        var coin = turns.center;
 
         function getRandomInt(min, max) {
             min = Math.ceil(min);
@@ -51,7 +52,7 @@
             return Math.floor(Math.random() * (max - min + 1)) + min;
         }
 
-        function Car(x, y, width, height) {
+        function Car(x = canvas.width / 2 - 15, y = canvas.height - 70, width = 30, height = 40) {
             this.x = x;
             this.y = y;
             this.width = width;
@@ -76,22 +77,31 @@
                 if (
                     // Borders
                     (
-                        (this.x <= r.x || this.x + this.width >= r.x + r.width)
-                        && this.y <= r.y
+                        (
+                            this.x <= r.x
+                            || this.x + this.width >= r.x + r.width
+                        ) &&
+                        this.y <= r.y
                     ) ||
 
                     // Blockers
-                    ((
-                        r.block == turns.left
-                        && this.y < r.y + r.height - r.height / 4
-                        && this.y + this.height > r.y + r.height / 4
-                        && this.x + this.width > r.x
-                        && this.x < r.x + r.width / 2) ||
-                        r.block == turns.right
-                        && this.y < r.y + r.height - r.height / 4
-                        && this.y + this.height > r.y + r.height / 4
-                        && this.x + this.width > r.x + r.width / 2
-                        && this.x < r.x + r.width
+                    (
+                        (
+                            (
+                                r.block == turns.left
+                                && this.x + this.width > r.x
+                                && this.x < r.x + r.width / 2
+                            ) ||
+                            (
+                                r.block == turns.right
+                                && this.x + this.width > r.x + r.width / 2
+                                && this.x < r.x + r.width
+                            )
+                        ) &&
+                        (
+                            this.y < r.y + r.height - r.height / 4
+                            && this.y + this.height > r.y + r.height / 4
+                        )
                     )) {
                     this.isAlive = false;
                 }
@@ -133,9 +143,9 @@
             ctx.closePath();
         }
 
-        var car = new Car(canvas.width / 2 - 15, canvas.height - 70, 30, 40);
+        var car = new Car();
 
-        function Road(x, y, turn) {
+        function Road(x, y) {
             this.x = x;
             this.y = y;
             this.turn = turn;
@@ -147,6 +157,18 @@
 
             if (this.block == this.coin && this.ifCoin) {
                 this.block = turns.center;
+            }
+
+            if (this.ifCoin
+                && this.coin == turns.center
+                && this.block != turns.center
+            ) {
+                if (this.block == turns.left) {
+                    this.coin = turns.right;
+                }
+                else {
+                    this.coin = turns.left;
+                }
             }
 
             if (this.turn == turns.left) {
@@ -270,16 +292,13 @@
 
         document.onkeydown = function (e) {
             if (e.keyCode === 13 && !car.isAlive) {
-                roadSegments = [];
                 score = 0;
                 curveOffset = 0;
                 turn = turns.center;
-                block = turns.center;
-                ifCoin = false;
-                coin = 1;
+                coin = turns.center;
                 drawStart();
-                car = new Car(canvas.width / 2 - 15, canvas.height - 70, 30, 40);
-                window.requestAnimationFrame(gameLoop);
+                car = new Car();
+                animationFrame = window.requestAnimationFrame(gameLoop);
                 changeDirectionInterval = setInterval(changeDirection, 2000);
                 addBlockInterval = setInterval(addBlock, 1000);
                 addCoinInterval = setInterval(addCoin, 500);
@@ -296,10 +315,10 @@
 
         function moveCar() {
             if (keyState[37]) {
-                car.x = car.x - 1;
+                car.x--;
             }
             if (keyState[39]) {
-                car.x = car.x + 1;
+                car.x++;
             }
             setTimeout(moveCar, 0.5);
         }
@@ -321,24 +340,28 @@
         function addSegment() {
             if (roadSegments.length < 20) {
                 roadSegments.unshift(
-                    new Road(roadSegments[0].x + curveOffset,
+                    new Road(
+                        roadSegments[0].x + curveOffset,
                         roadSegments[0].y - rPrp.height,
-                        turn)
+                    )
                 );
                 block = turns.center;
             }
         }
 
         function drawStart() {
+            roadSegments = [];
             for (i = 0; i < canvas.height; i += rPrp.height) {
                 if (i < canvas.height / 4 * 3 && !(i % (rPrp.height * 5))) {
                     addBlock();
                     addCoin();
                 }
                 roadSegments.push(
-                    new Road(canvas.width / 2 - rPrp.width / 2,
+                    new Road(
+                        canvas.width / 2 - rPrp.width / 2,
                         i,
-                        turns.center)
+                        turns.center
+                    )
                 );
 
                 block = turns.center;
@@ -411,23 +434,24 @@
                 clearCanvas();
                 drawRoad();
                 drawPlayer();
-                window.requestAnimationFrame(gameLoop);
+                animationFrame = window.requestAnimationFrame(gameLoop);
             }
             else {
-                clearCanvas();
-                drawRoad();
-                drawPlayer();
+                cancelAnimationFrame(animationFrame)
                 clearInterval(changeDirectionInterval);
                 clearInterval(addBlockInterval);
                 clearInterval(addCoinInterval);
                 clearInterval(addSegmentInterval);
+                clearCanvas();
+                drawRoad();
+                drawPlayer();
             }
             drawScore();
         }
 
         drawStart();
         moveCar();
-        gameLoop();
+        animationFrame = window.requestAnimationFrame(gameLoop);
         var changeDirectionInterval = setInterval(changeDirection, 2000);
         var addBlockInterval = setInterval(addBlock, 1000);
         var addCoinInterval = setInterval(addCoin, 500);
