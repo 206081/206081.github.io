@@ -48,66 +48,68 @@
         window.alert("Your browser doesn't support a stable version of IndexedDB.")
     }
 
+    let typeMap = {
+        0: "A",
+        1: "B"
+    }
+    let bonusMap = {
+        0: "Score x2",
+        1: "Score x5",
+        2: " Expand",
+        3: "  Shrink",
+        4: " Reverse",
+    };
+
     let ctx;
+    let myGameArea;
     let myGamePiece;
-    let myBall;
-    let keyState = {};
+    let myBall = [];
     let obstacles = [];
+    let bonuses = [];
+
+    let keyState = {};
+    let gameStop = false;
+
     let height = 620;
     let width = 600;
-    let score;
-    let time;
     let ballSpeed = 2;
     let padSpeed = 3;
-    let gameStop = false;
+    let score;
+    let scoreAddX2;
+    let scoreAddX5;
+    let time;
+    let bonusTimeout;
+    let score2Timeout;
+    let score5Timeout;
+
     let id;
     let db;
     let request = window.indexedDB.open("leaderboard", 1);
-    let movementFactorX = 1;
-    let movementFactorY = 1;
+
+    let movementFactorX;
+    let movementFactorY;
     let pieceWidth;
     let pieceHeight;
+    let pieceMutator;
     let ballRadius;
-    let startBlockX = 30;
-    let startBlockY = 30;
-    let blockSpacing = 10;
-    let blockWidth = 50;
-    let blockHeight = 50;
+    let startBlockX;
+    let startBlockY;
+    let blockSpacing;
+    let blockWidth;
+    let blockHeight;
+    let reverseControl;
+    let newBall;
 
-    function startGame() {
-        obstacles = [];
-        keyState = {};
-        height = 620;
-        width = 600;
-        score = 0;
-        time = 0;
-        gameStop = false;
-        movementFactorX = 1;
-        movementFactorY = 1;
-        pieceWidth = 100;
-        pieceHeight = 20;
-        ballRadius = 5;
+    class GameArea {
+        constructor(width, height) {
+            this.canvas = document.createElement("canvas")
+            this.width = width;
+            this.height = height;
+            this.interval = null;
+            this.timer = null;
+        }
 
-        myGamePiece = new Component(pieceWidth, pieceHeight, "red", (width - pieceWidth) / 2, height - pieceHeight);
-        myBall = new Component(0, 0, "red", 350, height - pieceHeight - ballRadius, ballRadius);
-
-        myBall.speedX = ballSpeed;
-        myBall.speedY = -ballSpeed;
-        AddBlockRow();
-        myGameArea.start();
-
-    }
-
-    function stopper() {
-        time++;
-    }
-
-    let myGameArea = {
-        canvas: document.createElement("canvas"),
-        div: document.getElementById("GameArea"),
-        width: width,
-        height: height,
-        start: function () {
+        start() {
             if (this.interval)
                 clearInterval(this.interval);
             if (this.timer)
@@ -116,14 +118,36 @@
             this.canvas.width = this.width;
             this.canvas.height = this.height;
             this.context = this.canvas.getContext("2d");
+            ctx = this.context;
+
             document.body.insertBefore(this.canvas, document.body.firstChild);
             this.interval = setInterval(updateGameArea, 20);
             this.timer = setInterval(stopper, 1000);
-        },
-        clear: function () {
+        }
+
+        clear() {
+            let i = obstacles.length;
+            while (i--) {
+                if (!obstacles[i].isAlive)
+                    obstacles.splice(i, 1);
+            }
+
+            i = myBall.length;
+            while (i--) {
+                if (!myBall[i].isAlive)
+                    myBall.splice(i, 1);
+            }
+
+            i = bonuses.length;
+            while (i--) {
+                if (!bonuses[i].isAlive)
+                    bonuses.splice(i, 1);
+            }
+
             this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        },
-        drawScore: function () {
+        }
+
+        drawScore() {
             this.context.beginPath();
             this.context.font = "30px Arial";
             this.context.fillStyle = "white";
@@ -132,8 +156,9 @@
             this.context.strokeText(`Score: ${score}`, 10, this.canvas.height - 10);
             this.context.stroke();
             this.context.closePath();
-        },
-        stop: function () {
+        }
+
+        stop() {
             clearInterval(this.interval);
             clearInterval(this.timer);
             addScore();
@@ -141,44 +166,79 @@
         }
     }
 
-    function AddBlockRow() {
-        for (let y = startBlockY; y < 3 * blockHeight + startBlockY; y += blockHeight + blockSpacing) {
-            for (let x = startBlockX; x < width - blockWidth; x += blockWidth + blockSpacing) {
-                obstacles.push(new Component(blockWidth, blockHeight, "green", x, y));
-            }
+
+    class Bonus {
+        constructor(width, height, x, y, bonus) {
+            this.width = width;
+            this.height = height;
+            this.x = x;
+            this.y = y;
+            this.color = "blue";
+            this.isAlive = true;
+            this.bonus = bonus;
+        }
+
+        update() {
+            this.y += 2;
+            ctx.fillStyle = this.color;
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.beginPath();
+            ctx.font = "12px Arial";
+            ctx.fillStyle = "white";
+            ctx.fillText(`${this.bonus}`, this.x, this.y + this.height / 2);
+            ctx.closePath();
+        }
+
+        collision(object) {
+            // Handling collision with components
+            // Bottom
+            return object.x < this.x + this.width &&
+                object.x + object.width > this.x &&
+                object.y < this.y + this.height &&
+                object.height + object.y > this.y;
         }
     }
 
-    function Component(width, height, color, x, y, radius = 0) {
-        this.width = width;
-        this.height = height;
-        this.speedX = 0;
-        this.speedY = 0;
-        this.x = x;
-        this.y = y;
-        this.radius = radius;
-        this.isAlive = true;
-        this.update = function () {
-            ctx = myGameArea.context;
-            ctx.fillStyle = color;
-            ctx.fillRect(this.x, this.y, this.width, this.height);
-            let i = obstacles.length;
-            while (i--) {
-                if (!obstacles[i].isAlive)
-                    obstacles.splice(i, 1);
-            }
-        };
-        this.newPos = function () {
+    class Pad {
+        constructor(width, height, x, y) {
+            this.width = width;
+            this.height = height;
+            this.color = "red";
+            this.x = x;
+            this.y = y;
+            this.speedX = 0;
+            this.speedY = 0;
+        }
+
+        update() {
             this.x += this.speedX;
             this.y += this.speedY;
-        };
-        this.drawBall = function () {
-            ctx.fillStyle = color;
+            ctx.fillStyle = this.color;
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+        }
+    }
+
+    class Ball {
+        constructor(x, y, radius) {
+            this.x = x;
+            this.y = y;
+            this.color = "red";
+            this.radius = radius;
+            this.speedX = 2;
+            this.speedY = 2;
+            this.isAlive = true;
+        }
+
+        update() {
+            this.x += this.speedX;
+            this.y += this.speedY;
+            ctx.fillStyle = this.color;
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
             ctx.fill();
-        };
-        this.collisionGameArea = function () {
+        }
+
+        collisionGameArea() {
             // Handling collision with GameArea
             if (this.x + this.radius >= myGameArea.canvas.width || this.x - this.radius <= 0) {
                 this.speedX = -this.speedX;
@@ -187,12 +247,11 @@
                 this.speedY = -this.speedY;
             }
             if (this.y + this.radius >= myGameArea.canvas.height) {
-                gameStop = true;
+                this.isAlive = false;
             }
-
         }
-        this.checkCollision = function (object) {
 
+        collision(object) {
             let x = clamp(object.x, object.x + object.width, this.x);
             let y = clamp(object.y, object.y + object.height, this.y);
 
@@ -221,9 +280,80 @@
                 }
                 return true;
             }
-
             return false;
         }
+    }
+
+    class Block {
+        constructor(width, height, x, y) {
+            this.width = width;
+            this.height = height;
+            this.x = x;
+            this.y = y;
+            this.color = "green";
+            this.isAlive = true;
+            this.type = typeMap[Math.round(Math.random())];
+            this.bonus = bonusMap[Math.round(Math.random() * 4)];
+        }
+
+        update() {
+            ctx.fillStyle = this.color;
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.beginPath();
+            ctx.font = "12px Arial";
+            ctx.fillStyle = "white";
+            ctx.fillText(`${this.type}`, this.x, this.y + this.height / 2);
+            ctx.closePath();
+        }
+    }
+
+    myGameArea = new GameArea(width, height);
+
+    function startGame() {
+        obstacles = [];
+        keyState = {};
+        myBall = [];
+        height = 620;
+        width = 600;
+        score = 0;
+        scoreAddX2 = 1;
+        scoreAddX5 = 1;
+        time = 0;
+        bonusTimeout = 5000;
+        gameStop = false;
+        movementFactorX = 1;
+        movementFactorY = 1;
+        pieceWidth = 100;
+        pieceHeight = 20;
+        pieceMutator = pieceWidth * 0.2;
+        ballRadius = 5;
+        reverseControl = false;
+        newBall = 0;
+
+        myGamePiece = new Pad(pieceWidth, pieceHeight, (width - pieceWidth) / 2, height - pieceHeight);
+        myBall.push(new Ball(myGamePiece.x + myGamePiece.width / 2, myGamePiece.y - ballRadius, ballRadius));
+        myBall.push(new Ball(300, 10, ballRadius));
+        addBlockRow();
+        myGameArea.start();
+
+    }
+
+    function addBlockRow() {
+        startBlockX = 30;
+        startBlockY = 30;
+        blockSpacing = 10;
+        blockWidth = 50;
+        blockHeight = 50;
+
+        for (let y = startBlockY; y < 3 * blockHeight + startBlockY; y += blockHeight + blockSpacing) {
+            for (let x = startBlockX; x < width - blockWidth; x += blockWidth + blockSpacing) {
+                obstacles.push(new Block(blockWidth, blockHeight, x, y));
+            }
+        }
+    }
+
+    function stopper() {
+        time++;
     }
 
     function clamp(min, max, value) {
@@ -242,35 +372,99 @@
         return _movementFactor
     }
 
+    function grandBonus(bonus) {
+        if (bonus === bonusMap[0]) {
+            clearTimeout(score2Timeout);
+            scoreAddX2 = 2;
+            score2Timeout = setTimeout(clearScoreX2, bonusTimeout);
+        }
+        if (bonus === bonusMap[1]) {
+            clearTimeout(score5Timeout);
+            scoreAddX5 = 5;
+            score5Timeout = setTimeout(clearScoreX5, bonusTimeout);
+        }
+        if (bonus === bonusMap[2]) {
+            myGamePiece.width += pieceMutator;
+            myGamePiece.x -= pieceMutator / 2;
+            setTimeout(function () {
+                myGamePiece.width -= pieceMutator;
+                myGamePiece.x += pieceMutator / 2;
+            }, bonusTimeout);
+        }
+        if (bonus === bonusMap[3]) {
+            myGamePiece.width -= pieceMutator;
+            myGamePiece.x += pieceMutator / 2;
+            setTimeout(function () {
+                myGamePiece.width += pieceMutator;
+                myGamePiece.x -= pieceMutator / 2;
+            }, bonusTimeout);
+        }
+        if (bonus === bonusMap[4]) {
+            reverseControl = !reverseControl;
+            setTimeout(function () {
+                reverseControl = !reverseControl;
+            }, bonusTimeout);
+        }
+
+    }
+
+    function clearScoreX2() {
+        scoreAddX2 = 1;
+    }
+
+    function clearScoreX5() {
+        scoreAddX5 = 1;
+    }
+
     function updateGameArea() {
-        document.getElementById("score").innerHTML = `ballSpeed:${ballSpeed}<br>
-movementFactorX: ${movementFactorX}<br>
-movementFactorY: ${movementFactorY}<br>
-myBall.speedX: ${myBall.speedX}<br>
-myBall.speedY: ${myBall.speedY}<br>
-time: ${time}<br>
-(myBall.speedY / Math.abs(myBall.speedY)): ${(myBall.speedY / Math.abs(myBall.speedY))}<br>
-(ballSpeed * 2 - Math.abs(myBall.speedX)): ${(ballSpeed * 2 - Math.abs(myBall.speedX))}`;
+//         document.getElementById("score").innerHTML = `
+// ballSpeed:${ballSpeed}<br>
+// movementFactorX: ${movementFactorX}<br>
+// movementFactorY: ${movementFactorY}<br>
+// pad: ${myGamePiece.x} ${myGamePiece.x + myGamePiece.width}<br>
+// time: ${time}<br>
+// myBall: ${myBall}<br>
+// myBall: ${!myBall}<br>
+// `;
 
         myGameArea.clear();
         myGameArea.drawScore();
         obstacles.forEach((o) => {
             o.update();
         })
-        myGamePiece.newPos();
         myGamePiece.update();
-        myBall.drawBall();
-        myBall.newPos();
-        myBall.collisionGameArea();
-        obstacles.forEach((obstacle) => {
-            if (myBall.checkCollision(obstacle)) {
-                obstacle.isAlive = false;
-                score++;
+        bonuses.forEach((b) => {
+            b.update();
+            if (b.collision(myGamePiece)) {
+                b.isAlive = false;
+                grandBonus(b.bonus);
             }
         })
-        myBall.checkCollision(myGamePiece);
+        myBall.forEach((b) => {
+            b.update();
+            b.collisionGameArea();
+            b.collision(myGamePiece);
+        })
+        obstacles.forEach((obstacle) => {
+            myBall.forEach((b) => {
+                if (b.collision(obstacle)) {
+                    obstacle.isAlive = false;
+                    if (obstacle.type === typeMap[0]) {
+                        newBall++;
+                    } else {
+                        bonuses.push(new Bonus(obstacle.width, 20, obstacle.x, obstacle.y + obstacle.height, obstacle.bonus));
+                    }
+                    if (newBall >= 5) {
+                        myBall.push(new Ball(myGamePiece.x + myGamePiece.width / 2, myGamePiece.y - ballRadius, ballRadius));
+                        newBall = 0;
+                    }
+                    score += 1 * scoreAddX2 * scoreAddX5;
+                }
+            })
+
+        })
         moveMyGameObject();
-        if (gameStop)
+        if (!myBall.length)
             myGameArea.stop();
     }
 
@@ -285,21 +479,22 @@ time: ${time}<br>
     function moveMyGameObject() {
         myGamePiece.speedX = 0;
 
-        if (keyState["ArrowRight"] && myGamePiece.x + myGamePiece.width <= width)
+        if ((!reverseControl && keyState["ArrowRight"] || reverseControl && keyState["ArrowLeft"])
+            && myGamePiece.x + myGamePiece.width <= width)
             myGamePiece.speedX = padSpeed;
 
-        if (keyState["ArrowLeft"] && myGamePiece.x >= 0)
+        if ((!reverseControl && keyState["ArrowLeft"] || reverseControl && keyState["ArrowRight"]) && myGamePiece.x >= 0)
             myGamePiece.speedX = -padSpeed;
 
     }
 
     request.onerror = function (event) {
-        console.log("error: ");
+        console.log("error: ", event);
     };
 
     request.onsuccess = function (event) {
         db = request.result;
-        console.log("success: " + db);
+        console.log("success: " + db, event);
     };
 
     request.onupgradeneeded = function (event) {
@@ -319,7 +514,7 @@ time: ${time}<br>
             .add({name: name, score: score, time: time, date: date});
 
         request.onerror = function (event) {
-            alert("Unable to add data!");
+            alert(`Unable to add data! ${event}`);
         }
     }
 
