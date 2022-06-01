@@ -55,9 +55,9 @@
     let bonusMap = {
         0: "Score x2",
         1: "Score x5",
-        2: " Expand",
-        3: "  Shrink",
-        4: " Reverse",
+        2: "Expand",
+        3: "Shrink",
+        4: "Reverse",
     };
 
     let ctx;
@@ -99,6 +99,13 @@
     let blockHeight;
     let reverseControl;
     let newBall;
+
+    class Vector {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
 
     class GameArea {
         constructor(width, height) {
@@ -144,13 +151,17 @@
                     bonuses.splice(i, 1);
             }
 
-            this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.context.fillStyle = 'rgba(255, 255, 255, .4)';
+            this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.context.strokeStyle = 'black';
+            this.context.strokeRect(0, 0, this.canvas.width, this.canvas.height);
         }
 
         drawScore() {
             this.context.beginPath();
             this.context.font = "30px Arial";
             this.context.fillStyle = "white";
+            this.context.textAlign = "start";
             this.context.fillText(`Score: ${score}`, 10, this.canvas.height - 10);
             this.context.strokeStyle = "black";
             this.context.strokeText(`Score: ${score}`, 10, this.canvas.height - 10);
@@ -171,31 +182,30 @@
         constructor(width, height, x, y, bonus) {
             this.width = width;
             this.height = height;
-            this.x = x;
-            this.y = y;
+            this.position = new Vector(x, y);
+            this.velocity = new Vector(0, 2);
             this.color = "blue";
             this.isAlive = true;
             this.bonus = bonus;
         }
 
         update() {
-            this.y += 2;
+            this.position.y += this.velocity.y;
             ctx.fillStyle = this.color;
-            ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.fillRect(this.position.x, this.position.y, this.width, this.height);
             ctx.beginPath();
             ctx.font = "12px Arial";
             ctx.fillStyle = "white";
-            ctx.fillText(`${this.bonus}`, this.x, this.y + this.height / 2);
+            ctx.textAlign = "center";
+            ctx.fillText(`${this.bonus}`, this.position.x + this.width / 2, this.position.y + this.height / 2);
             ctx.closePath();
         }
 
         collision(object) {
-            // Handling collision with components
-            // Bottom
-            return object.x < this.x + this.width &&
-                object.x + object.width > this.x &&
-                object.y < this.y + this.height &&
-                object.height + object.y > this.y;
+            return object.x < this.position.x + this.width &&
+                object.x + object.width > this.position.x &&
+                object.y < this.position.y + this.height &&
+                object.height + object.y > this.position.y;
         }
     }
 
@@ -220,63 +230,81 @@
 
     class Ball {
         constructor(x, y, radius) {
-            this.x = x;
-            this.y = y;
+            this.position = new Vector(x, y);
             this.color = "red";
             this.radius = radius;
-            this.speedX = 2;
-            this.speedY = 2;
+            this.velocity = new Vector(2, 2);
             this.isAlive = true;
         }
 
         update() {
-            this.x += this.speedX;
-            this.y += this.speedY;
+            this.position.x += this.velocity.x;
+            this.position.y += this.velocity.y;
             ctx.fillStyle = this.color;
             ctx.beginPath();
-            ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+            ctx.arc(this.position.x, this.position.y, this.radius, 0, 2 * Math.PI);
             ctx.fill();
         }
 
         collisionGameArea() {
             // Handling collision with GameArea
-            if (this.x + this.radius >= myGameArea.canvas.width || this.x - this.radius <= 0) {
-                this.speedX = -this.speedX;
+            if (this.position.x + this.radius >= myGameArea.canvas.width || this.position.x - this.radius <= 0) {
+                this.velocity.x = -this.velocity.x;
             }
-            if (this.y - this.radius <= 0) {
-                this.speedY = -this.speedY;
+            if (this.position.y - this.radius <= 0) {
+                this.velocity.y = -this.velocity.y;
             }
-            if (this.y + this.radius >= myGameArea.canvas.height) {
+            if (this.position.y + this.radius >= myGameArea.canvas.height) {
                 this.isAlive = false;
             }
         }
 
+        collisionBall(object) {
+            let dx = (this.position.x + this.radius) - (object.position.x + object.radius);
+            let dy = (this.position.y + this.radius) - (object.position.y + object.radius);
+            let distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < this.radius + object.radius) {
+                var mass1 = this.radius;
+                var mass2 = object.radius;
+                var velX1 = this.velocity.x;
+                var velX2 = object.velocity.x;
+                var velY1 = this.velocity.y;
+                var velY2 = object.velocity.y;
+
+                this.velocity.x = (2 * mass2 * velX2) / (mass1 + mass2);
+                object.velocity.x = (2 * mass1 * velX1) / (mass1 + mass2);
+                this.velocity.y = (2 * mass2 * velY2) / (mass1 + mass2);
+                object.velocity.y = (2 * mass1 * velY1) / (mass1 + mass2);
+            }
+        }
+
         collision(object) {
-            let x = clamp(object.x, object.x + object.width, this.x);
-            let y = clamp(object.y, object.y + object.height, this.y);
+            let x = clamp(object.x, object.x + object.width, this.position.x);
+            let y = clamp(object.y, object.y + object.height, this.position.y);
 
-            if (Math.pow(x - this.x, 2) + Math.pow(y - this.y, 2) <= Math.pow(this.radius, 2)) {
-                if (this.x > object.x && this.x < object.x + object.width) {
-                    movementFactorY = movementFactor(this.x, object.x, object.width);
-                    if (this.y < object.y) {
-                        this.speedY = -ballSpeed / movementFactorY;
-                    } else if (this.y > object.y + object.height) {
-                        this.speedY = ballSpeed / movementFactorY;
+            if (Math.pow(x - this.position.x, 2) + Math.pow(y - this.position.y, 2) <= Math.pow(this.radius, 2)) {
+                if (this.position.x > object.x && this.position.x < object.x + object.width) {
+                    movementFactorY = movementFactor(this.position.x, object.x, object.width);
+                    if (this.position.y < object.y) {
+                        this.velocity.y = -ballSpeed / movementFactorY;
+                    } else if (this.position.y > object.y + object.height) {
+                        this.velocity.y = ballSpeed / movementFactorY;
                     }
-                    this.speedX = (this.speedX / Math.abs(this.speedX)) * (ballSpeed * 2 - Math.abs(this.speedY));
+                    this.velocity.x = (this.velocity.x / Math.abs(this.velocity.x)) * (ballSpeed * 2 - Math.abs(this.velocity.y));
 
-                } else if (this.y > object.y && this.y < object.y + object.height) {
-                    movementFactorX = movementFactor(this.y, object.y, object.height);
-                    if (this.x < object.x) {
-                        this.speedX = -ballSpeed / movementFactorX;
-                    } else if (this.x > object.x + object.width) {
-                        this.speedX = ballSpeed / movementFactorX;
+                } else if (this.position.y > object.y && this.position.y < object.y + object.height) {
+                    movementFactorX = movementFactor(this.position.y, object.y, object.height);
+                    if (this.position.x < object.x) {
+                        this.velocity.x = -ballSpeed / movementFactorX;
+                    } else if (this.position.x > object.x + object.width) {
+                        this.velocity.x = ballSpeed / movementFactorX;
                     }
-                    this.speedY = (this.speedY / Math.abs(this.speedY)) * (ballSpeed * 2 - Math.abs(this.speedX));
+                    this.velocity.y = (this.velocity.y / Math.abs(this.velocity.y)) * (ballSpeed * 2 - Math.abs(this.velocity.x));
 
                 } else {
-                    this.speedX = -this.speedX;
-                    this.speedY = -this.speedY;
+                    this.velocity.x = -this.velocity.x;
+                    this.velocity.y = -this.velocity.y;
                 }
                 return true;
             }
@@ -302,7 +330,8 @@
             ctx.beginPath();
             ctx.font = "12px Arial";
             ctx.fillStyle = "white";
-            ctx.fillText(`${this.type}`, this.x, this.y + this.height / 2);
+            ctx.textAlign = "center";
+            ctx.fillText(`${this.type}`, this.x + this.width / 2, this.y + this.height / 2);
             ctx.closePath();
         }
     }
@@ -332,7 +361,6 @@
 
         myGamePiece = new Pad(pieceWidth, pieceHeight, (width - pieceWidth) / 2, height - pieceHeight);
         myBall.push(new Ball(myGamePiece.x + myGamePiece.width / 2, myGamePiece.y - ballRadius, ballRadius));
-        myBall.push(new Ball(300, 10, ballRadius));
         addBlockRow();
         myGameArea.start();
 
@@ -417,15 +445,15 @@
     }
 
     function updateGameArea() {
-//         document.getElementById("score").innerHTML = `
-// ballSpeed:${ballSpeed}<br>
-// movementFactorX: ${movementFactorX}<br>
-// movementFactorY: ${movementFactorY}<br>
-// pad: ${myGamePiece.x} ${myGamePiece.x + myGamePiece.width}<br>
-// time: ${time}<br>
-// myBall: ${myBall}<br>
-// myBall: ${!myBall}<br>
-// `;
+        document.getElementById("score").innerHTML = `
+ballSpeed:${ballSpeed}<br>
+movementFactorX: ${movementFactorX}<br>
+movementFactorY: ${movementFactorY}<br>
+pad: ${myGamePiece.x} ${myGamePiece.x + myGamePiece.width}<br>
+time: ${time}<br>
+myBall: ${myBall.length}<br>
+myBall: ${!myBall}<br>
+`;
 
         myGameArea.clear();
         myGameArea.drawScore();
@@ -444,6 +472,11 @@
             b.update();
             b.collisionGameArea();
             b.collision(myGamePiece);
+            myBall.forEach((ball) => {
+                if (ball !== b) {
+                    b.collisionBall(ball);
+                }
+            })
         })
         obstacles.forEach((obstacle) => {
             myBall.forEach((b) => {
@@ -523,7 +556,7 @@
         let board = "";
 
         objectStore.openCursor().onsuccess = function (event) {
-            let cursor = event.target.result;
+            let cursor = event.target.result.order;
             if (cursor) {
                 board += "Name: " + cursor.value.name
                     + "\tScore: " + cursor.value.score
