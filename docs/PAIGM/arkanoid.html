@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <style>
+        canvas {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            left: 0;
+            margin: auto;
+            background-color: #f1f1f1;
+        }
+    </style>
+    <title>Arkanoid</title>
+</head>
+<body onload="prepareGame()">
+<button onclick="readLeaderboard()">Read leaderboard</button>
+<p id="info">Game 1 - When you go below 25 blocks then block will appear in empty spaces randomly.<br>
+    Game 2 - Every 20-30 seconds we receive extra row of blocks on the top.<br><br>
+    General info:<br>
+    Controls - Arrows.<br>
+    There are two types of block.<br>
+    &#160;&#160;&#160;&#160;&#8226; A - After beating 5 blocks you receive extra ball.<br>
+    &#160;&#160;&#160;&#160;&#8226; B - After beating you can catch a bonus.
+</p>
+</body>
+<script>
+    window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
+    window.IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.msIDBTransaction;
+    window.IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange || window.msIDBKeyRange
+
+    if (!window.indexedDB) {
+        window.alert("Your browser doesn't support a stable version of IndexedDB.")
+    }
+
+    let typeMap = {
+        0: "A",
+        1: "B"
+    }
+    let bonusMap = {
+        0: "Score x2",
+        1: "Score x5",
+        2: "Expand",
+        3: "Shrink",
+        4: "Reverse",
+    };
+
+    let game;
+    let pad;
+    let balls = [];
+    let obstacles = [];
+    let deadObstacles = [];
+    let bonuses = [];
+    let gameOption1 = {};
+    let gameOption2 = {};
+
+    let keyState = {};
+    let gameStop = false;
+
+    let height = 620;
+    let width = 600;
+    let ballSpeed = 2;
+    let padSpeed = 3;
+    let score;
+    let scoreAddX2;
+    let scoreAddX5;
+    let time;
+    let bonusTimeout;
+    let score2Timeout;
+    let score5Timeout;
+    let optionTimeout;
+
+    let id;
+    let db;
+    let request = window.indexedDB.open("leaderboard", 1);
+
+    let movementFactorX;
+    let movementFactorY;
+    let pieceWidth;
+    let pieceHeight;
+    let pieceMutator;
+    let ballRadius;
+    let startBlockX;
+    let startBlockY;
+    let blockSpacing;
+    let blockWidth;
+    let blockHeight;
+    let reverseControl;
+    let newBall;
+
+    function getBonusMapElement() {
+        return bonusMap[Math.round(Math.random() * 4)];
+    }
+
+    function getTypeMapElement() {
+        return typeMap[Math.round(Math.random())];
+    }
+
+    function gameOption2Interval() {
+        return Math.round(Math.random() * 10 + 20) * 1000;
+    }
+
+    function getMousePos(canvas, event) {
+        let rect = canvas.getBoundingClientRect();
+        return {
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top
+        };
+    }
+
+    function isInside(pos, rect) {
+        return pos.x > rect.x && pos.x < rect.x + rect.width && pos.y < rect.y + rect.height && pos.y > rect.y
+    }
+
+    class Vector {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    class GameArea {
+        constructor(width, height) {
+            this.canvas = document.createElement("canvas")
+            this.width = width;
+            this.height = height;
+            this.interval = null;
+            this.timer = null;
+            this.canvas.width = this.width;
+            this.canvas.height = this.height;
+            this.ctx = this.canvas.getContext("2d");
+            this.img = new Image();
+            this.img.src = "wall.jpg";
+            this.tick = null;
+            document.body.insertBefore(this.canvas, document.body.firstChild);
+        }
+
+        start(option) {
+
+            if (this.interval)
+                clearInterval(this.interval);
+            if (this.timer)
+                clearInterval(this.timer);
+            if (optionTimeout)
+                clearTimeout(optionTimeout);
+
+            this.tick = 10;
+            this.interval = setInterval(updateGameArea, 20);
+            this.timer = setInterval(stopper, 1000);
+
+            if (option === gameOption1)
+                optionTimeout = setTimeout(gameOption, 2000, option)
+            else
+                optionTimeout = setTimeout(gameOption, gameOption2Interval(), option);
+        }
+
+        clear() {
+            let i = obstacles.length;
+            while (i--) {
+                if (!obstacles[i].isAlive) {
+                    let obstacle = obstacles.splice(i, 1)[0];
+                    obstacle.type = getTypeMapElement();
+                    obstacle.bonus = getBonusMapElement();
+                    obstacle.isAlive = true;
+                    deadObstacles.push(obstacle);
+                }
+            }
+
+            i = balls.length;
+            while (i--) {
+                if (!balls[i].isAlive)
+                    balls.splice(i, 1);
+            }
+
+            i = bonuses.length;
+            while (i--) {
+                if (!bonuses[i].isAlive)
+                    bonuses.splice(i, 1);
+            }
+
+            this.ctx.fillStyle = 'rgba(255, 255, 255, .2)';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.strokeStyle = 'black';
+            this.ctx.strokeRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+
+        clearAll() {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+
+        drawBackgroundWithAlpha() {
+            this.ctx.globalAlpha = 0.4;
+            this.drawBackground();
+            this.ctx.globalAlpha = 1;
+        }
+
+        drawBackground() {
+            this.ctx.drawImage(this.img, 0, 0, this.width, this.height);
+        }
+
+        drawScoreTime() {
+            this.ctx.beginPath();
+            this.ctx.font = "30px Arial";
+            this.ctx.fillStyle = "white";
+            this.ctx.textAlign = "start";
+            this.ctx.fillText(`Score: ${score}`, 10, this.canvas.height - 10);
+            this.ctx.strokeStyle = "black";
+            this.ctx.strokeText(`Score: ${score}`, 10, this.canvas.height - 10);
+            this.ctx.stroke();
+            this.ctx.textAlign = "end";
+            this.ctx.fillText(`Time: ${time}`, this.canvas.width - 10, this.canvas.height - 10);
+            this.ctx.strokeStyle = "black";
+            this.ctx.strokeText(`Time: ${time}`, this.canvas.width - 10, this.canvas.height - 10);
+            this.ctx.stroke();
+            this.ctx.closePath();
+        }
+
+        stop() {
+            clearInterval(this.interval);
+            clearInterval(this.timer);
+            addScore();
+            readLeaderboard();
+            this.clearAll();
+            prepareGame();
+        }
+    }
+
+    class Bonus {
+        constructor(width, height, x, y, bonus) {
+            this.width = width;
+            this.height = height;
+            this.position = new Vector(x, y);
+            this.velocity = new Vector(0, 2);
+            this.isAlive = true;
+            this.bonus = bonus;
+            this.img = new Image();
+            this.img.src = "bonus.png";
+        }
+
+        update() {
+            this.position.y += this.velocity.y;
+            game.ctx.drawImage(this.img, this.position.x, this.position.y, this.width, this.height);
+            game.ctx.beginPath();
+            game.ctx.font = "bold 12px Arial";
+            game.ctx.fillStyle = "white";
+            game.ctx.textAlign = "center";
+            game.ctx.fillText(`${this.bonus}`, this.position.x + this.width / 2, this.position.y + this.height / 1.5);
+            game.ctx.closePath();
+        }
+
+        collision(object) {
+            return object.x < this.position.x + this.width &&
+                object.x + object.width > this.position.x &&
+                object.y < this.position.y + this.height &&
+                object.height + object.y > this.position.y;
+        }
+    }
+
+    class Pad {
+        constructor(width, height, x, y) {
+            this.width = width;
+            this.height = height;
+            this.x = x;
+            this.y = y;
+            this.speedX = 0;
+            this.img = new Image();
+            this.img.src = "pad.png";
+        }
+
+        update() {
+            this.x += this.speedX;
+            game.ctx.drawImage(this.img, this.x, this.y, this.width, this.height)
+        }
+    }
+
+    class Ball {
+        constructor(x, y, radius) {
+            this.radius = radius;
+            this.position = new Vector(x, y);
+            this.velocity = new Vector(2, 2);
+            this.isAlive = true;
+        }
+
+        update() {
+            this.position.x += this.velocity.x;
+            this.position.y += this.velocity.y;
+            game.ctx.beginPath();
+            game.ctx.fillStyle = "red";
+            game.ctx.arc(this.position.x, this.position.y, this.radius, 0, 2 * Math.PI);
+            game.ctx.stroke();
+            game.ctx.fill();
+            game.ctx.closePath();
+        }
+
+        collisionGameArea() {
+            if (this.position.x + this.radius >= game.canvas.width || this.position.x - this.radius <= 0)
+                this.velocity.x = -this.velocity.x;
+            if (this.position.y - this.radius <= 0)
+                this.velocity.y = -this.velocity.y;
+            if (this.position.y + this.radius >= game.canvas.height)
+                this.isAlive = false;
+        }
+
+        collisionBall(object) {
+            let dx = Math.pow((this.position.x + this.radius) - (object.position.x + object.radius), 2);
+            let dy = Math.pow((this.position.y + this.radius) - (object.position.y + object.radius), 2);
+            let distance = Math.sqrt(dx + dy);
+
+            if (distance < this.radius + object.radius) {
+                let t = this.velocity;
+                let o = object.velocity;
+
+                this.velocity = new Vector((2 * object.radius * o.x) / (this.radius + object.radius), (2 * object.radius * o.y) / (this.radius + object.radius));
+                object.velocity = new Vector((2 * this.radius * t.x) / (this.radius + object.radius), (2 * this.radius * t.y) / (this.radius + object.radius));
+            }
+        }
+
+        collision(object) {
+            let x = clamp(object.x, object.x + object.width, this.position.x);
+            let y = clamp(object.y, object.y + object.height, this.position.y);
+
+            if (Math.pow(x - this.position.x, 2) + Math.pow(y - this.position.y, 2) <= Math.pow(this.radius, 2)) {
+                if (this.position.x > object.x && this.position.x < object.x + object.width) {
+                    movementFactorY = movementFactor(this.position.x, object.x, object.width);
+                    if (this.position.y < object.y) {
+                        this.velocity.y = -ballSpeed / movementFactorY;
+                    } else if (this.position.y > object.y + object.height) {
+                        this.velocity.y = ballSpeed / movementFactorY;
+                    }
+                    this.velocity.x = (this.velocity.x / Math.abs(this.velocity.x)) * (ballSpeed * 2 - Math.abs(this.velocity.y));
+
+                } else if (this.position.y > object.y && this.position.y < object.y + object.height) {
+                    movementFactorX = movementFactor(this.position.y, object.y, object.height);
+                    if (this.position.x < object.x) {
+                        this.velocity.x = -ballSpeed / movementFactorX;
+                    } else if (this.position.x > object.x + object.width) {
+                        this.velocity.x = ballSpeed / movementFactorX;
+                    }
+                    this.velocity.y = (this.velocity.y / Math.abs(this.velocity.y)) * (ballSpeed * 2 - Math.abs(this.velocity.x));
+
+                } else {
+                    this.velocity.x = -this.velocity.x;
+                    this.velocity.y = -this.velocity.y;
+                }
+                return true;
+            }
+            return false;
+        }
+    }
+
+    class Block {
+        constructor(width, height, x, y) {
+            this.width = width;
+            this.height = height;
+            this.x = x;
+            this.y = y;
+            this.isAlive = true;
+            this.type = getTypeMapElement();
+            this.bonus = getBonusMapElement();
+            this.img = new Image();
+            this.img.src = "block.png"
+        }
+
+        update() {
+            game.ctx.drawImage(this.img, this.x, this.y, this.width, this.height);
+        }
+    }
+
+    game = new GameArea(width, height);
+
+    function gameOption(option) {
+        if (optionTimeout)
+            clearTimeout(optionTimeout);
+        switch (option) {
+            case gameOption1:
+                let timeout = 500;
+                if (obstacles.length <= 6) {
+                    obstacles.push(deadObstacles.splice(Math.round(Math.random() * (deadObstacles.length - 1)), 1)[0]);
+                } else if (obstacles.length < 25) {
+                    obstacles.push(deadObstacles.splice(Math.round(Math.random() * (deadObstacles.length - 1)), 1)[0]);
+                    timeout = 5000;
+                } else {
+                    timeout = 5000;
+                }
+                optionTimeout = setTimeout(gameOption, timeout, option);
+                break;
+            case gameOption2:
+                addBlockRow(startBlockY);
+                optionTimeout = setTimeout(gameOption, gameOption2Interval(), option);
+        }
+    }
+
+    function prepareGame() {
+        game.drawBackground();
+
+        gameOption1 = {
+            x: game.width / 2 - 100,
+            y: game.height / 2 - 90,
+            width: 200,
+            height: 80,
+            text: "Game 1"
+        };
+        gameOption2 = {
+            x: game.width / 2 - 100,
+            y: game.height / 2 + 10,
+            width: 200,
+            height: 80,
+            text: "Game 2"
+        };
+
+
+        [gameOption1, gameOption2].forEach((option) => {
+            game.ctx.beginPath();
+            game.ctx.globalAlpha = 0.4;
+            game.ctx.fillStyle = "black";
+            game.ctx.fillRect(option.x, option.y, option.width, option.height);
+            game.ctx.globalAlpha = 1;
+            game.ctx.font = "30px Arial";
+            game.ctx.fillStyle = "white";
+            game.ctx.textAlign = "center";
+            game.ctx.fillText(`${option.text}`, option.x + option.width / 2, option.y + option.height / 2 + 10);
+            game.ctx.strokeRect(option.x, option.y, option.width, option.height);
+            game.ctx.closePath();
+        })
+
+        game.canvas.addEventListener('click', function (evt) {
+            let mousePos = getMousePos(game.canvas, evt);
+            if (isInside(mousePos, gameOption1)) {
+                startGame(gameOption1);
+                this.removeEventListener('click', arguments.callee, false);
+            } else if (isInside(mousePos, gameOption2)) {
+                startGame(gameOption2);
+                this.removeEventListener('click', arguments.callee, false);
+            }
+        }, false);
+    }
+
+    function startGame(option) {
+        obstacles = [];
+        deadObstacles = [];
+        bonuses = [];
+        keyState = {};
+        balls = [];
+        height = 620;
+        width = 600;
+        score = 0;
+        scoreAddX2 = 1;
+        scoreAddX5 = 1;
+        time = 0;
+        bonusTimeout = 5000;
+        gameStop = false;
+        movementFactorX = 1;
+        movementFactorY = 1;
+        pieceWidth = 100;
+        pieceHeight = 20;
+        pieceMutator = pieceWidth * 0.2;
+        ballRadius = 5;
+        reverseControl = false;
+        newBall = 0;
+        startBlockX = 30;
+        startBlockY = 30;
+        blockSpacing = 10;
+        blockWidth = 50;
+        blockHeight = 50;
+
+        pad = new Pad(pieceWidth, pieceHeight, (width - pieceWidth) / 2, height - pieceHeight);
+        balls.push(new Ball(pad.x + pad.width / 2, pad.y - ballRadius, ballRadius));
+
+        for (let i = 0; i < 3; i++)
+            addBlockRow();
+
+        game.start(option);
+
+    }
+
+    function addBlockRow() {
+        obstacles.forEach((o) => {
+            o.y += o.width + blockSpacing;
+        })
+        for (let x = startBlockX; x < game.width - blockWidth; x += blockWidth + blockSpacing) {
+            obstacles.push(new Block(blockWidth, blockHeight, x, startBlockY));
+        }
+    }
+
+    function stopper() {
+        time++;
+    }
+
+    function clamp(min, max, value) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function movementFactor(ballCenter, begin, length) {
+        let _movementFactor = 1;
+        if (ballCenter <= begin + length / 10 || ballCenter >= begin + length * 9 / 10)
+            _movementFactor = 3;
+        else if (ballCenter <= begin + length * 3 / 10 || ballCenter >= begin + length * 7 / 10)
+            _movementFactor = 2;
+        else if (ballCenter <= begin + length * 4 / 10 || ballCenter >= begin + length * 6 / 10)
+            _movementFactor = 1.5;
+
+        return _movementFactor
+    }
+
+    function grandBonus(bonus) {
+        switch (bonus) {
+            case bonusMap[0]:
+                clearTimeout(score2Timeout);
+                scoreAddX2 = 2;
+                score2Timeout = setTimeout(clearScoreX2, bonusTimeout);
+                break;
+            case bonusMap[1]:
+                clearTimeout(score5Timeout);
+                scoreAddX5 = 5;
+                score5Timeout = setTimeout(clearScoreX5, bonusTimeout);
+                break;
+            case bonusMap[2]:
+                pad.width += pieceMutator;
+                pad.x -= pieceMutator / 2;
+                setTimeout(function () {
+                    pad.width -= pieceMutator;
+                    pad.x += pieceMutator / 2;
+                }, bonusTimeout);
+                break;
+            case bonusMap[3]:
+                pad.width -= pieceMutator;
+                pad.x += pieceMutator / 2;
+                setTimeout(function () {
+                    pad.width += pieceMutator;
+                    pad.x -= pieceMutator / 2;
+                }, bonusTimeout);
+                break;
+            case bonusMap[4]:
+                reverseControl = !reverseControl;
+                setTimeout(function () {
+                    reverseControl = !reverseControl;
+                }, bonusTimeout);
+        }
+
+    }
+
+    function clearScoreX2() {
+        scoreAddX2 = 1;
+    }
+
+    function clearScoreX5() {
+        scoreAddX5 = 1;
+    }
+
+    function updateGameArea() {
+        // document.getElementById("info").innerHTML = ``;
+        game.clear();
+        moveMyGameObject();
+        game.drawBackgroundWithAlpha();
+        balls.forEach((b) => {
+            b.update();
+            b.collisionGameArea();
+            b.collision(pad);
+            balls.forEach((ball) => {
+                if (ball !== b) {
+                    b.collisionBall(ball);
+                }
+            })
+        })
+        obstacles.forEach((obstacle) => {
+            obstacle.update();
+            if (obstacle.y + obstacle.height >= pad.y)
+                gameStop = true;
+            balls.forEach((b) => {
+                if (b.collision(obstacle)) {
+                    obstacle.isAlive = false;
+                    if (obstacle.type === typeMap[0]) {
+                        newBall++;
+                    } else {
+                        bonuses.push(new Bonus(obstacle.width, 20, obstacle.x, obstacle.y + obstacle.height, obstacle.bonus));
+                    }
+                    if (newBall >= 5) {
+                        balls.push(new Ball(pad.x + pad.width / 2, pad.y - ballRadius, ballRadius));
+                        newBall = 0;
+                    }
+                    score += 1 * scoreAddX2 * scoreAddX5;
+                }
+            })
+        })
+        bonuses.forEach((b) => {
+            b.update();
+            if (b.collision(pad)) {
+                b.isAlive = false;
+                grandBonus(b.bonus);
+            }
+        })
+        game.drawScoreTime();
+        pad.update();
+
+        if (gameStop)
+            game.tick--;
+
+        if (!balls.length || !game.tick)
+            game.stop();
+
+    }
+
+    window.addEventListener('keydown', function (e) {
+        keyState[e.code] = true;
+    }, true);
+
+    window.addEventListener('keyup', function (e) {
+        keyState[e.code] = false;
+    }, true);
+
+    function moveMyGameObject() {
+        pad.speedX = 0;
+        if ((!reverseControl && keyState["ArrowRight"] || reverseControl && keyState["ArrowLeft"])
+            && pad.x + pad.width <= width)
+            pad.speedX = padSpeed;
+
+        if ((!reverseControl && keyState["ArrowLeft"] || reverseControl && keyState["ArrowRight"]) && pad.x >= 0)
+            pad.speedX = -padSpeed;
+
+    }
+
+    request.onerror = function (event) {
+        console.log("error: ", event);
+    };
+
+    request.onsuccess = function (event) {
+        db = request.result;
+        console.log("success: " + db, event);
+    };
+
+    request.onupgradeneeded = function (event) {
+        let db = event.target.result;
+        db.createObjectStore("player", {keyPath: "id", autoIncrement: true});
+    }
+
+    function addScore() {
+        let name = prompt("Please enter your nick", "Nick");
+        let date = new Intl.DateTimeFormat('en-US', {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+        }).format(new Date());
+
+        let request = db.transaction(["player"], "readwrite")
+            .objectStore("player")
+            .add({name: name, score: score, time: time, date: date});
+
+        request.onerror = function (event) {
+            alert(`Unable to add data! ${event}`);
+        }
+    }
+
+    function readLeaderboard() {
+        let objectStore = db.transaction("player").objectStore("player");
+        let board = "";
+        objectStore.openCursor().onsuccess = function (event) {
+            let cursor = event.target.result;
+            if (cursor) {
+                board += "Name: " + cursor.value.name
+                    + "\tScore: " + cursor.value.score
+                    + "\tTime: " + cursor.value.time
+                    + "\tDate: " + cursor.value.date + "\n";
+                cursor.continue();
+            } else {
+                if (!board)
+                    board = "Empty leaderboard";
+                alert(board);
+            }
+        };
+    }
+
+
+</script>
+</html>
